@@ -1,0 +1,6 @@
+../Core/Src/arm.c:89:10:read_identification	32	static
+../Core/Src/arm.c:107:10:DPACC	136	static
+../Core/Src/arm.c:147:10:APACC	136	static
+../Core/Src/arm.c:196:25:CM3_Debug_Init	104	static
+../Core/Src/arm.c:262:25:CM3_Debug_ReadMemory32	32	static
+../Core/Src/arm.c:284:25:CM3_Debug_WriteMemory32	32	static
