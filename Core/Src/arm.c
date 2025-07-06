@@ -1,74 +1,15 @@
 #include <stdint.h>
 #include <stdio.h> // For printf, for debugging
 
-#define MAX_JTAG_DEVICES 4
 // Assuming these are available from your JTAG bit-banging implementation
-// #include "jtag_api.h"
- extern void JTAG_Init(void);
- extern void JTAG_Reset(void);
- extern void JTAG_ShiftIR(uint32_t instruction, uint8_t bits);
- extern void JTAG_ShiftDR(uint64_t data_out, uint8_t bits, uint64_t* data_in);
- extern void JTAG_GoToState(const uint8_t* path_to_state, uint32_t num_steps);
+#include "jtag.h"
 
- void JTAG_ShiftDR_SPI(uint64_t data_out, uint8_t bits, uint64_t* data_in);
- uint32_t JTAG_ShiftIRSPI(uint32_t instruction, uint8_t bits);
 // extern void JTAG_Chain_Init(uint8_t num_devices);
 // extern void JTAG_Chain_ConfigureDevice(uint8_t index, JTAG_DeviceType_TypeDef type, uint8_t default_dr_length);
 // extern void JTAG_SetBypassState(uint8_t index, uint8_t bypassed); // Only if multi-device chain is used
 
 // Also, ensure your delay function is available, e.g.:
 // #define HAL_Delay(ms)  // Your actual delay implementation
-
-
-// --- Configuration for your Cortex-M3 ---
-#define CM3_JTAG_IR_LENGTH 4       // Common for ARM JTAG-DPs, verify for your specific M3
-#define CM3_EXPECTED_IDCODE 0x4BA00477 // Example: ARM Cortex-M3 (verify from datasheet)
-
-// JTAG-DP Instructions
-#define CM3_DP_IDCODE   0x0E // Read Debug Port IDCODE
-#define CM3_DP_ABORT    0x0A // Abort Debug Port operations
-#define CM3_DP_CTRLSTAT 0x09 // Access Debug Port Control/Status Register
-#define CM3_DP_SELECT   0x0A // Select Access Port and register bank
-#define CM3_DP_RDBUF    0x0B // Read the Debug Port Read Buffer (result of last AP read)
-#define CM3_DP_BYPASS   0x0F // JTAG-DP Bypass instruction
-
-// AHB-AP Register Addresses (these are the 'AP_ADDR' values within the selected AP)
-// These are not JTAG IR instructions, but addresses within the AP's register space.
-#define CM3_AP_CSW_ADDR 0x00 // Control/Status Word
-#define CM3_AP_TAR_ADDR 0x04 // Transfer Address Register
-#define CM3_AP_DRW_ADDR 0x0C // Data Read/Write Register
-#define CM3_AP_IDR_ADDR 0xFC // AP ID Register
-
-
-// AHB-AP CSW bit definitions (same as before)
-#define CM3_AP_CSW_SIZE_8BIT  (0x00000000UL << 0)
-#define CM3_AP_CSW_SIZE_16BIT (0x00000001UL << 0)
-#define CM3_AP_CSW_SIZE_32BIT (0x00000002UL << 0) // Default word access
-#define CM3_AP_CSW_ADDRINC_OFF  (0x00000000UL << 4) // No address increment
-#define CM3_AP_CSW_ADDRINC_SINGLE (0x00000001UL << 4) // Increment by transfer size
-#define CM3_AP_CSW_ADDRINC_PACKED (0x00000002UL << 4) // Packed transfers (advanced)
-#define CM3_AP_CSW_HPROT_DATA_RW (0x00000000UL << 8) // Data read/write (typical)
-#define CM3_AP_CSW_TRN_NORMAL   (0x00000000UL << 12) // Normal transfer
-#define CM3_AP_CSW_DBGSTAT      (0x00000000UL << 16) // Debug Status (read-only)
-#define CM3_AP_CSW_MSTRTYPE_AP  (0x00000000UL << 28) // Master Type: AP (default)
-#define CM3_AP_CSW_PROT         (0x00000000UL)     // Protection bits (depends on system)
-#define CM3_AP_CSW_DEFAULT      (CM3_AP_CSW_SIZE_32BIT | CM3_AP_CSW_ADDRINC_SINGLE | CM3_AP_CSW_MSTRTYPE_AP)
-
- void JTAG_ShiftDR_SPI(uint64_t data_out, uint8_t bits, uint64_t* data_in);
-
-
-// --- Status/Error Codes for Debugging ---
-typedef enum {
-    CM3_DBG_OK = 0,
-    CM3_DBG_ERROR_JTAG_INIT_FAILED,
-    CM3_DBG_ERROR_IDCODE_MISMATCH,
-    CM3_DBG_ERROR_DP_STUCK,
-    CM3_DBG_ERROR_AP_UNAVAILABLE,
-    CM3_DBG_ERROR_TIMEOUT,
-    CM3_DBG_ERROR_INVALID_ARG,
-    CM3_DBG_ERROR_READ_FAILED,
-    CM3_DBG_ERROR_WRITE_FAILED
-} CM3_DebugStatus_TypeDef;
 
 // --- Internal Helper Function (Reads/Writes to DP or AP) ---
 
@@ -85,24 +26,6 @@ typedef enum {
  * @return CM3_DBG_OK on success, error code otherwise.
  */
 
-
-uint32_t read_identification(void)
-{
-	uint32_t retval = 0;
-	uint64_t tempWriteVal = 0;
-	uint64_t data_in_temp;
-
-	//tempWriteVal |= read & 0x1;
-
-	tempWriteVal |= (0b10 & 0x3) << 1;
-
-	// Direct DP access (e.g., CTRLSTAT, IDCODE, ABORT)
-	JTAG_ShiftIR(0b1010, CM3_JTAG_IR_LENGTH);
-
-	JTAG_ShiftDR(tempWriteVal, 35, &data_in_temp);
-
-
-}
 
 uint32_t DPACC (uint32_t data_out, uint32_t *data_in, uint32_t dp_reg ,uint32_t read)
 {
@@ -156,7 +79,7 @@ uint32_t APACC (uint32_t data_out, uint32_t *data_in, uint32_t dp_reg ,uint32_t 
 
 	tempWriteVal |= (uint64_t)data_out << 3;
 
-	// Direct DP access (e.g., CTRLSTAT, IDCODE, ABORT)
+	// Direct AP access (e.g., CTRLSTAT, IDCODE, ABORT)
 	JTAG_ShiftIRSPI(0b1011, CM3_JTAG_IR_LENGTH);
 
 	JTAG_ShiftDR_SPI(tempWriteVal, 35, &data_in_temp);
@@ -184,115 +107,181 @@ uint32_t APACC (uint32_t data_out, uint32_t *data_in, uint32_t dp_reg ,uint32_t 
     return retval;
 }
 
-// --- Cortex-M3 Debug Abstraction Layer Functions ---
 
-/**
- * @brief Initializes the JTAG connection and verifies the Cortex-M3 processor.
- * Assumes JTAG_Init() and JTAG_Chain_Init() have been called.
- * Configures the JTAG chain for a single Cortex-M3 device.
- * This version integrates the IDCODE read directly.
- * @return CM3_DBG_OK on success, error code otherwise.
- */
-CM3_DebugStatus_TypeDef CM3_Debug_Init(void) {
-    uint32_t read_idcode = 0;
-    uint64_t rx_array[MAX_JTAG_DEVICES] = {0};
-    uint64_t tx_array[MAX_JTAG_DEVICES] = {0}; // Dummy data for shifts
+#ifdef TRY_CM3_BLUEPILL
 
-    // 1. Initialize and configure the JTAG chain (if not already done globally)
-    // Assuming a single Cortex-M3 device is the ONLY device in the chain.
-    //JTAG_Chain_Init(1); // One device in the chain
-    //JTAG_Chain_ConfigureDevice(0, JTAG_DEV_TYPE_ARM_CORTEX_M, 32); // Default DR length for DP registers is 32
-
-    // 2. Perform JTAG reset to bring the state machine to a known state
-    JTAG_Reset();
+uint32_t idCode = JTAG_ReadIDCODE();
 
 
-    read_idcode = JTAG_ReadIDCODE(); // IDCODE is 32-bit for device 0
+  //JTAG_ShiftIRSPI(0xabab, 13);
+  //JTAG_ShiftIRSPI(0xdead, 14);
+  //JTAG_ShiftIRSPI(0x72D1, 15);
+  //JTAG_ShiftDR_SPI(0, 32, &idCode);
+  //idCode = JTAG_ReadIDCODE();
+  //JTAG_ShiftIRSPI(0xe6AD, 16);
+  //JTAG_ShiftDR_SPI(0, 32, &idCode);
+  //idCode = JTAG_ReadIDCODE();
 
-    // 4. Verify the read IDCODE
-    if (read_idcode == 0x00000000 || read_idcode == 0xFFFFFFFF) {
-        printf("JTAG Init Failed: No response from target (IDCODE 0x%08lX indicates stuck TDO/no activity).\n", read_idcode);
-        return CM3_DBG_ERROR_JTAG_INIT_FAILED;
-    }
+  uint64_t denemeVal = 0;
 
-    if (read_idcode != CM3_EXPECTED_IDCODE) {
-        printf("JTAG Init Failed: IDCODE mismatch. Expected 0x%08lX, Read 0x%08lX\n", CM3_EXPECTED_IDCODE, read_idcode);
-        return CM3_DBG_ERROR_IDCODE_MISMATCH;
-    }
-    printf("Cortex-M3 IDCODE (0x%08lX) verified successfully.\n", read_idcode);
 
-    // 5. Power up the Debug Port (DP) and Access Port (AP)
-    // Send DP ABORT with STKCMPST, STKERR, WDERR, ORUNERR set to clear sticky flags.
-    CM3_Debug_AccessRegister(CM3_DP_ABORT, 0x1E, NULL, 0, 0); // ABORT with sticky bits set
+  JTAG_ShiftIRSPI(0xf, 4);
+  JTAG_ShiftDR_SPI( (uint64_t) 0xDeadbeef, (uint64_t) 33, &denemeVal);
 
-    // CTRL/STAT register to power up (CSYSPWRUPREQ, CDBGPWRUPREQ)
-    uint32_t ctrl_stat_val = (1UL << 28) | (1UL << 29); // CSYSPWRUPREQ | CDBGPWRUPREQ
-    CM3_Debug_AccessRegister(CM3_DP_CTRLSTAT, ctrl_stat_val, NULL, 0, 0);
+  JTAG_ShiftIRSPI(0xe0a0dbad, 32);
+  JTAG_ShiftDR_SPI(0, 32, &idCode);
 
-    // Wait for power up acknowledge (CSYSPWRUPACK, CDBGPWRUPACK)
-    uint32_t read_ctrl_stat = 0;
-    int timeout = 1000;
-    do {
-        CM3_Debug_AccessRegister(CM3_DP_CTRLSTAT, 0, &read_ctrl_stat, 0, 0);
-        if (((read_ctrl_stat >> 31) & 0x01) && ((read_ctrl_stat >> 30) & 0x01)) {
-            break; // Power-up acknowledged
-        }
-        // Replace HAL_Delay with your actual delay function (e.g., my_delay_us(1000))
-        HAL_Delay(1); // Small delay, or your JTAG_Delay_ns
-    } while (timeout-- > 0);
+  JTAG_ShiftIRSPI(0x70A0DBAD, 31);
+  JTAG_ShiftDR_SPI(0, 32, &idCode);
 
-    if (timeout <= 0) {
-        printf("Cortex-M3 Debug Power-up Timeout!\n");
-        return CM3_DBG_ERROR_DP_STUCK;
-    }
+  JTAG_ShiftIRSPI(0x38A0DBAD, 30);
+  JTAG_ShiftDR_SPI(0, 32, &idCode);
 
-    // 6. Initialize AHB-AP CSW register (e.g., 32-bit access, auto-increment)
-    // This needs to be done via CM3_DP_SELECT then a write operation via DP_CTRLSTAT.
-    CM3_Debug_AccessRegister(CM3_DP_CTRLSTAT, CM3_AP_CSW_DEFAULT, NULL, 1, CM3_AP_CSW_ADDR);
-    printf("Cortex-M3 Debug Init: SUCCESS!\n");
-    return CM3_DBG_OK;
-}
+  uint8_t irLen;
+  irLen = JTAG_MeasureIRLength();
 
-/**
- * @brief Reads a 32-bit word from the Cortex-M3's memory.
- * @param address The memory address to read from.
- * @param data_out Pointer to store the read 32-bit data.
- * @return CM3_DBG_OK on success, error code otherwise.
- */
-CM3_DebugStatus_TypeDef CM3_Debug_ReadMemory32(uint32_t address, uint32_t *data_out) {
-    if (data_out == NULL) return CM3_DBG_ERROR_INVALID_ARG;
 
-    // 1. Write address to AHB-AP TAR
-    CM3_DebugStatus_TypeDef status = CM3_Debug_AccessRegister(CM3_DP_CTRLSTAT, address, NULL, 1, CM3_AP_TAR_ADDR);
-    if (status != CM3_DBG_OK) return status;
 
-    // 2. Read from AHB-AP DRW (data will be available in RDBUF on next DP read)
-    // The previous access to TAR will have placed its *read* result in RDBUF.
-    // So, we immediately initiate a read from DRW, and the result of THIS read will be in RDBUF on the *next* cycle.
-    status = CM3_Debug_AccessRegister(CM3_DP_CTRLSTAT, 0, data_out, 1, CM3_AP_DRW_ADDR);
-    if (status != CM3_DBG_OK) return status;
+  uint32_t dpacc_reg;
 
-    return CM3_DBG_OK;
-}
+  uint32_t apacc_reg;
 
-/**
- * @brief Writes a 32-bit word to the Cortex-M3's memory.
- * @param address The memory address to write to.
- * @param data_in The 32-bit data to write.
- * @return CM3_DBG_OK on success, error code otherwise.
- */
-CM3_DebugStatus_TypeDef CM3_Debug_WriteMemory32(uint32_t address, uint32_t data_in) {
-    // 1. Write address to AHB-AP TAR
-    CM3_DebugStatus_TypeDef status = CM3_Debug_AccessRegister(CM3_DP_CTRLSTAT, address, NULL, 1, CM3_AP_TAR_ADDR);
-    if (status != CM3_DBG_OK) return status;
+  uint32_t writeVal;
 
-    // 2. Write data to AHB-AP DRW
-    status = CM3_Debug_AccessRegister(CM3_DP_CTRLSTAT, data_in, NULL, 1, CM3_AP_DRW_ADDR);
-    if (status != CM3_DBG_OK) return status;
 
-    return CM3_DBG_OK;
-}
+  writeVal = (1 << 30) | (1 << 28) | (1 << 5);
+  //writeVal = 0xFFffFFff;
 
-// ... (rest of the CM3_Debug functions such as CM3_Debug_Halt, CM3_Debug_Run,
-// CM3_Debug_Reset, CM3_Debug_ReadCoreRegister, CM3_Debug_WriteCoreRegister
-// remain the same, as they call CM3_Debug_AccessRegister)
+  DPACC(writeVal, &dpacc_reg, 1, WRITE);
+
+  DPACC(writeVal, &dpacc_reg, 1, READ);
+
+  idCode = JTAG_ReadIDCODE();
+
+
+
+  /* read normal data */
+  writeVal = 0x00;
+
+  DPACC(writeVal, &dpacc_reg, 2, WRITE);
+
+  APACC(0x00000002, &apacc_reg, 0,READ);
+
+  APACC( (0x2 | 1 << 29 | 1 << 25) , &apacc_reg, 0,WRITE);
+
+  APACC(0x00000002, &apacc_reg, 0,READ);
+
+
+  APACC(0xE000EDF0, &apacc_reg, 1,WRITE);
+
+  APACC(DUMMY_WRITE_VAL, &apacc_reg, 1,READ);
+
+  /* this command halts the core */
+  APACC(0xA05F0003, &apacc_reg, 3,WRITE);
+
+
+  APACC(0xAA55AA55, &apacc_reg, 3,READ);
+
+  DPACC(writeVal, &dpacc_reg, 1, READ);
+
+  APACC(0xDEADBEEF, &apacc_reg, 3,WRITE);
+
+  APACC(0xAA55AA55, &apacc_reg, 3,READ);
+
+  DPACC(writeVal, &dpacc_reg, 1, READ);
+
+  /* read banked data */
+  writeVal = 0x10;
+
+  DPACC(writeVal, &dpacc_reg, 2, WRITE);
+
+  APACC(0xAA55AA55, &apacc_reg, 0,READ);
+
+  APACC(0xAA55AA55, &apacc_reg, 1,READ);
+
+  APACC(0xAA55AA55, &apacc_reg, 2,READ);
+
+  APACC(0xAA55AA55, &apacc_reg, 3,READ);
+
+
+  /* read ID */
+
+  writeVal = 0xf0;
+
+  DPACC(writeVal, &dpacc_reg, 2, WRITE);
+
+  APACC(0xAA55AA55, &apacc_reg, 3,READ);
+
+  APACC(0xAA55AA55, &apacc_reg, 2,READ);
+
+
+
+
+
+
+
+
+
+  idCode = JTAG_ReadIDCODE();
+
+
+
+
+
+  //CM3_Debug_Init();
+
+#endif
+
+#ifdef TRY_BLUE_PILL
+
+
+  uint64_t data_in;
+  uint8_t irLen;
+  uint32_t writeVal;
+  uint64_t tempWriteVal = 0;
+
+  writeVal = (1 << 30) | (1 << 28) | (1 << 5);
+
+
+  /* enable connect */
+
+  JTAG_ShiftIRSPI(0x7, 6);
+  JTAG_ShiftDR_SPI(0x89, 8, &data_in);
+
+
+  JTAG_ShiftIRSPI(0x2, 6);
+
+
+  for(int i = 0; i < 16; i++)
+  {
+	  uint32_t val = (0xa0 + i);
+	  uint32_t read_val;
+	  val <<= 24;
+	  val |= 0x120;
+	  if(i == 11)
+	  {
+		  JTAG_ShiftDR_SPI(val, 32, &data_in);
+	  }
+
+	  val = (0x20 + i);
+	  val <<= 24;
+	  JTAG_ShiftDR_SPI(val, 32, &data_in);
+	  JTAG_ShiftDR_SPI(val, 32, &data_in);
+	  read_val = data_in;
+  }
+
+
+
+  JTAG_ShiftDR_SPI(0xFFFFFFFFFFFFFFFF, 64, &data_in);
+
+  irLen = JTAG_MeasureIRLength();
+
+  JTAG_ShiftIRSPI_BypassOthers(0b1010, 4,
+  		6, 0, &data_in);
+
+
+  JTAG_ShiftDR_SPI(0x280000002, 35, &data_in);
+  JTAG_ShiftDR_SPI(0x280000003, 35, &data_in);
+
+
+#endif

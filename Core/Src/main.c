@@ -19,10 +19,13 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "string.h"
+#include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 int SPI_Transfer(uint64_t *rdData, uint64_t wrData, uint8_t bitSize);
+#include "jtag.h"
+#include "arm.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -67,9 +70,9 @@ SPI_HandleTypeDef hspi4;
 
 UART_HandleTypeDef huart3;
 
-PCD_HandleTypeDef hpcd_USB_OTG_FS;
-
 /* USER CODE BEGIN PV */
+
+extern USBD_HandleTypeDef hUsbDeviceFS;
 
 /* USER CODE END PV */
 
@@ -80,8 +83,9 @@ static void MX_ETH_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_SPI4_Init(void);
-static void MX_USB_OTG_FS_PCD_Init(void);
 /* USER CODE BEGIN PFP */
+
+void Switch_SPI(void);
 
 /* USER CODE END PFP */
 
@@ -90,6 +94,7 @@ static void MX_USB_OTG_FS_PCD_Init(void);
 #define READ 1
 #define WRITE 0
 #define DUMMY_WRITE_VAL 0x1
+
 
 /* USER CODE END 0 */
 
@@ -126,7 +131,7 @@ int main(void)
   MX_USART3_UART_Init();
   MX_SPI1_Init();
   MX_SPI4_Init();
-  MX_USB_OTG_FS_PCD_Init();
+  MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
 
   RCC->APB1ENR |= (1 << 15);
@@ -138,109 +143,90 @@ int main(void)
   uint8_t rdBuff[16] = {0};
 
 
+  JTAG_Init();
   JTAG_Reset_Target();
 
-  JTAG_Init();
   uint32_t idCode = JTAG_ReadIDCODE();
 
 
-  //JTAG_ShiftIRSPI(0xabab, 13);
-  //JTAG_ShiftIRSPI(0xdead, 14);
-  //JTAG_ShiftIRSPI(0x72D1, 15);
-  //JTAG_ShiftDR_SPI(0, 32, &idCode);
-  //idCode = JTAG_ReadIDCODE();
-  //JTAG_ShiftIRSPI(0xe6AD, 16);
-  //JTAG_ShiftDR_SPI(0, 32, &idCode);
-  //idCode = JTAG_ReadIDCODE();
+    uint64_t denemeVal = 0;
 
-  //JTAG_ShiftIRSPI(0xe0dead, 24);
-  //JTAG_ShiftDR_SPI(0, 32, &idCode);
-
-  JTAG_ShiftIRSPI(0xe0a0dbad, 32);
-  JTAG_ShiftDR_SPI(0, 32, &idCode);
-
-  JTAG_ShiftIRSPI(0x70A0DBAD, 31);
-  JTAG_ShiftDR_SPI(0, 32, &idCode);
-
-  JTAG_ShiftIRSPI(0x38A0DBAD, 30);
-  JTAG_ShiftDR_SPI(0, 32, &idCode);
-
-  uint8_t irLen;
-  irLen = JTAG_MeasureIRLength();
+    uint8_t irLen;
+    irLen = JTAG_MeasureIRLength();
 
 
 
-  uint32_t dpacc_reg;
+    uint32_t dpacc_reg;
 
-  uint32_t apacc_reg;
+    uint32_t apacc_reg;
 
-  uint32_t writeVal;
-
-
-  writeVal = (1 << 30) | (1 << 28) | (1 << 5);
-  //writeVal = 0xFFffFFff;
-
-  DPACC(writeVal, &dpacc_reg, 1, WRITE);
-
-  DPACC(writeVal, &dpacc_reg, 1, READ);
-
-  idCode = JTAG_ReadIDCODE();
+    uint32_t writeVal;
 
 
+    writeVal = (1 << 30) | (1 << 28) | (1 << 5);
+    //writeVal = 0xFFffFFff;
 
-  /* read normal data */
-  writeVal = 0x00;
+    DPACC(writeVal, &dpacc_reg, 1, WRITE);
 
-  DPACC(writeVal, &dpacc_reg, 2, WRITE);
-
-  APACC(0x00000002, &apacc_reg, 0,READ);
-
-  APACC( (0x2 | 1 << 29 | 1 << 25) , &apacc_reg, 0,WRITE);
-
-  APACC(0x00000002, &apacc_reg, 0,READ);
+    DPACC(writeVal, &dpacc_reg, 1, READ);
 
 
-  APACC(0xE000EDF0, &apacc_reg, 1,WRITE);
+    /* read normal data */
+    writeVal = 0x00;
 
-  APACC(DUMMY_WRITE_VAL, &apacc_reg, 1,READ);
+    DPACC(writeVal, &dpacc_reg, 2, WRITE);
 
-  /* this command halts the core */
-  APACC(0xA05F0003, &apacc_reg, 3,WRITE);
+    APACC(0x00000002, &apacc_reg, 0,READ);
 
+    APACC( (0x2 | 1 << 29 | 1 << 25) , &apacc_reg, 0,WRITE);
 
-  APACC(0xAA55AA55, &apacc_reg, 3,READ);
-
-  DPACC(writeVal, &dpacc_reg, 1, READ);
-
-  APACC(0xDEADBEEF, &apacc_reg, 3,WRITE);
-
-  APACC(0xAA55AA55, &apacc_reg, 3,READ);
-
-  DPACC(writeVal, &dpacc_reg, 1, READ);
-
-  /* read banked data */
-  writeVal = 0x10;
-
-  DPACC(writeVal, &dpacc_reg, 2, WRITE);
-
-  APACC(0xAA55AA55, &apacc_reg, 0,READ);
-
-  APACC(0xAA55AA55, &apacc_reg, 1,READ);
-
-  APACC(0xAA55AA55, &apacc_reg, 2,READ);
-
-  APACC(0xAA55AA55, &apacc_reg, 3,READ);
+    APACC(0x00000002, &apacc_reg, 0,READ);
 
 
-  /* read ID */
+    APACC(0xE000EDF0, &apacc_reg, 1,WRITE);
 
-  writeVal = 0xf0;
+    APACC(DUMMY_WRITE_VAL, &apacc_reg, 1,READ);
 
-  DPACC(writeVal, &dpacc_reg, 2, WRITE);
+    /* this command halts the core */
+    APACC(0xA05F0003, &apacc_reg, 3,WRITE);
 
-  APACC(0xAA55AA55, &apacc_reg, 3,READ);
 
-  APACC(0xAA55AA55, &apacc_reg, 2,READ);
+    APACC(0xAA55AA55, &apacc_reg, 3,READ);
+
+    DPACC(writeVal, &dpacc_reg, 1, READ);
+
+    APACC(0xDEADBEEF, &apacc_reg, 3,WRITE);
+
+    APACC(0xAA55AA55, &apacc_reg, 3,READ);
+
+    DPACC(writeVal, &dpacc_reg, 1, READ);
+
+    /* read banked data */
+
+    APACC(0x0, &apacc_reg, 1,WRITE);
+
+    writeVal = 0x10;
+
+    DPACC(writeVal, &dpacc_reg, 2, WRITE);
+
+    APACC(0xAA55AA55, &apacc_reg, 0,READ);
+
+    APACC(0xAA55AA55, &apacc_reg, 1,READ);
+
+    APACC(0xAA55AA55, &apacc_reg, 2,READ);
+
+    APACC(0xAA55AA55, &apacc_reg, 3,READ);
+
+
+    /* read ID */
+
+    writeVal = 0xf0;
+
+    DPACC(writeVal, &dpacc_reg, 2, WRITE);
+
+    APACC(0xAA55AA55, &apacc_reg, 3,READ);
+
+    APACC(0xAA55AA55, &apacc_reg, 2,READ);
 
 
 
@@ -250,13 +236,8 @@ int main(void)
 
 
 
-  idCode = JTAG_ReadIDCODE();
+    idCode = JTAG_ReadIDCODE();
 
-
-
-
-
-  //CM3_Debug_Init();
 
   /* USER CODE END 2 */
 
@@ -489,41 +470,6 @@ static void MX_USART3_UART_Init(void)
   /* USER CODE BEGIN USART3_Init 2 */
 
   /* USER CODE END USART3_Init 2 */
-
-}
-
-/**
-  * @brief USB_OTG_FS Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USB_OTG_FS_PCD_Init(void)
-{
-
-  /* USER CODE BEGIN USB_OTG_FS_Init 0 */
-
-  /* USER CODE END USB_OTG_FS_Init 0 */
-
-  /* USER CODE BEGIN USB_OTG_FS_Init 1 */
-
-  /* USER CODE END USB_OTG_FS_Init 1 */
-  hpcd_USB_OTG_FS.Instance = USB_OTG_FS;
-  hpcd_USB_OTG_FS.Init.dev_endpoints = 6;
-  hpcd_USB_OTG_FS.Init.speed = PCD_SPEED_FULL;
-  hpcd_USB_OTG_FS.Init.dma_enable = DISABLE;
-  hpcd_USB_OTG_FS.Init.phy_itface = PCD_PHY_EMBEDDED;
-  hpcd_USB_OTG_FS.Init.Sof_enable = ENABLE;
-  hpcd_USB_OTG_FS.Init.low_power_enable = DISABLE;
-  hpcd_USB_OTG_FS.Init.lpm_enable = DISABLE;
-  hpcd_USB_OTG_FS.Init.vbus_sensing_enable = ENABLE;
-  hpcd_USB_OTG_FS.Init.use_dedicated_ep1 = DISABLE;
-  if (HAL_PCD_Init(&hpcd_USB_OTG_FS) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USB_OTG_FS_Init 2 */
-
-  /* USER CODE END USB_OTG_FS_Init 2 */
 
 }
 

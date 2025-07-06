@@ -1,0 +1,10 @@
+../USB_DEVICE/App/usbd_desc.c:262:11:USBD_FS_DeviceDescriptor	1
+../USB_DEVICE/App/usbd_desc.c:275:11:USBD_FS_LangIDStrDescriptor	1
+../USB_DEVICE/App/usbd_desc.c:288:11:USBD_FS_ProductStrDescriptor	2
+../USB_DEVICE/App/usbd_desc.c:307:11:USBD_FS_ManufacturerStrDescriptor	1
+../USB_DEVICE/App/usbd_desc.c:320:11:USBD_FS_SerialStrDescriptor	1
+../USB_DEVICE/App/usbd_desc.c:340:11:USBD_FS_ConfigStrDescriptor	2
+../USB_DEVICE/App/usbd_desc.c:359:11:USBD_FS_InterfaceStrDescriptor	2
+../USB_DEVICE/App/usbd_desc.c:379:11:USBD_FS_USR_BOSDescriptor	1
+../USB_DEVICE/App/usbd_desc.c:392:13:Get_SerialNum	2
+../USB_DEVICE/App/usbd_desc.c:418:13:IntToUnicode	3
