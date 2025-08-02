@@ -720,7 +720,6 @@ static void USBD_SetAddress(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)
   * @param  req: usb request
   * @retval status
   */
-static int denemeVal = 0;
 static USBD_StatusTypeDef USBD_SetConfig(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)
 {
   USBD_StatusTypeDef ret = USBD_OK;
@@ -730,7 +729,6 @@ static USBD_StatusTypeDef USBD_SetConfig(USBD_HandleTypeDef *pdev, USBD_SetupReq
 
   if (cfgidx > USBD_MAX_NUM_CONFIGURATION)
   {
-	  denemeVal = 1;
     USBD_CtlError(pdev, req);
     return USBD_FAIL;
   }
@@ -740,20 +738,17 @@ static USBD_StatusTypeDef USBD_SetConfig(USBD_HandleTypeDef *pdev, USBD_SetupReq
     case USBD_STATE_ADDRESSED:
       if (cfgidx != 0U)
       {
-    	  denemeVal = 2;
         pdev->dev_config = cfgidx;
 
         ret = USBD_SetClassConfig(pdev, cfgidx);
 
         if (ret != USBD_OK)
         {
-        	denemeVal = 3;
           USBD_CtlError(pdev, req);
           pdev->dev_state = USBD_STATE_ADDRESSED;
         }
         else
         {
-        	denemeVal = 4;
           (void)USBD_CtlSendStatus(pdev);
           pdev->dev_state = USBD_STATE_CONFIGURED;
 
@@ -767,7 +762,6 @@ static USBD_StatusTypeDef USBD_SetConfig(USBD_HandleTypeDef *pdev, USBD_SetupReq
       }
       else
       {
-    	  denemeVal = 5;
         (void)USBD_CtlSendStatus(pdev);
       }
       break;
@@ -775,7 +769,6 @@ static USBD_StatusTypeDef USBD_SetConfig(USBD_HandleTypeDef *pdev, USBD_SetupReq
     case USBD_STATE_CONFIGURED:
       if (cfgidx == 0U)
       {
-    	  denemeVal = 6;
         pdev->dev_state = USBD_STATE_ADDRESSED;
         pdev->dev_config = cfgidx;
         (void)USBD_ClrClassConfig(pdev, cfgidx);
@@ -783,7 +776,6 @@ static USBD_StatusTypeDef USBD_SetConfig(USBD_HandleTypeDef *pdev, USBD_SetupReq
       }
       else if (cfgidx != pdev->dev_config)
       {
-    	  denemeVal = 7;
         /* Clear old configuration */
         (void)USBD_ClrClassConfig(pdev, (uint8_t)pdev->dev_config);
 
@@ -794,26 +786,22 @@ static USBD_StatusTypeDef USBD_SetConfig(USBD_HandleTypeDef *pdev, USBD_SetupReq
 
         if (ret != USBD_OK)
         {
-        	denemeVal = 8;
           USBD_CtlError(pdev, req);
           (void)USBD_ClrClassConfig(pdev, (uint8_t)pdev->dev_config);
           pdev->dev_state = USBD_STATE_ADDRESSED;
         }
         else
         {
-        	denemeVal = 9;
           (void)USBD_CtlSendStatus(pdev);
         }
       }
       else
       {
-    	  denemeVal = 10;
         (void)USBD_CtlSendStatus(pdev);
       }
       break;
 
     default:
-    	denemeVal = 11;
       USBD_CtlError(pdev, req);
       (void)USBD_ClrClassConfig(pdev, cfgidx);
       ret = USBD_FAIL;

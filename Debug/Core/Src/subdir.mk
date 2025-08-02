@@ -5,6 +5,12 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
+../Core/Src/DAP.c \
+../Core/Src/DAP_vendor.c \
+../Core/Src/JTAG_DP.c \
+../Core/Src/SWO.c \
+../Core/Src/SW_DP.c \
+../Core/Src/UART.c \
 ../Core/Src/arm.c \
 ../Core/Src/dpacc.c \
 ../Core/Src/jtag.c \
@@ -16,6 +22,12 @@ C_SRCS += \
 ../Core/Src/system_stm32f7xx.c 
 
 OBJS += \
+./Core/Src/DAP.o \
+./Core/Src/DAP_vendor.o \
+./Core/Src/JTAG_DP.o \
+./Core/Src/SWO.o \
+./Core/Src/SW_DP.o \
+./Core/Src/UART.o \
 ./Core/Src/arm.o \
 ./Core/Src/dpacc.o \
 ./Core/Src/jtag.o \
@@ -27,6 +39,12 @@ OBJS += \
 ./Core/Src/system_stm32f7xx.o 
 
 C_DEPS += \
+./Core/Src/DAP.d \
+./Core/Src/DAP_vendor.d \
+./Core/Src/JTAG_DP.d \
+./Core/Src/SWO.d \
+./Core/Src/SW_DP.d \
+./Core/Src/UART.d \
 ./Core/Src/arm.d \
 ./Core/Src/dpacc.d \
 ./Core/Src/jtag.d \
@@ -45,7 +63,7 @@ Core/Src/%.o Core/Src/%.su Core/Src/%.cyclo: ../Core/Src/%.c Core/Src/subdir.mk
 clean: clean-Core-2f-Src
 
 clean-Core-2f-Src:
-	-$(RM) ./Core/Src/arm.cyclo ./Core/Src/arm.d ./Core/Src/arm.o ./Core/Src/arm.su ./Core/Src/dpacc.cyclo ./Core/Src/dpacc.d ./Core/Src/dpacc.o ./Core/Src/dpacc.su ./Core/Src/jtag.cyclo ./Core/Src/jtag.d ./Core/Src/jtag.o ./Core/Src/jtag.su ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/stm32f7xx_hal_msp.cyclo ./Core/Src/stm32f7xx_hal_msp.d ./Core/Src/stm32f7xx_hal_msp.o ./Core/Src/stm32f7xx_hal_msp.su ./Core/Src/stm32f7xx_it.cyclo ./Core/Src/stm32f7xx_it.d ./Core/Src/stm32f7xx_it.o ./Core/Src/stm32f7xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32f7xx.cyclo ./Core/Src/system_stm32f7xx.d ./Core/Src/system_stm32f7xx.o ./Core/Src/system_stm32f7xx.su
+	-$(RM) ./Core/Src/DAP.cyclo ./Core/Src/DAP.d ./Core/Src/DAP.o ./Core/Src/DAP.su ./Core/Src/DAP_vendor.cyclo ./Core/Src/DAP_vendor.d ./Core/Src/DAP_vendor.o ./Core/Src/DAP_vendor.su ./Core/Src/JTAG_DP.cyclo ./Core/Src/JTAG_DP.d ./Core/Src/JTAG_DP.o ./Core/Src/JTAG_DP.su ./Core/Src/SWO.cyclo ./Core/Src/SWO.d ./Core/Src/SWO.o ./Core/Src/SWO.su ./Core/Src/SW_DP.cyclo ./Core/Src/SW_DP.d ./Core/Src/SW_DP.o ./Core/Src/SW_DP.su ./Core/Src/UART.cyclo ./Core/Src/UART.d ./Core/Src/UART.o ./Core/Src/UART.su ./Core/Src/arm.cyclo ./Core/Src/arm.d ./Core/Src/arm.o ./Core/Src/arm.su ./Core/Src/dpacc.cyclo ./Core/Src/dpacc.d ./Core/Src/dpacc.o ./Core/Src/dpacc.su ./Core/Src/jtag.cyclo ./Core/Src/jtag.d ./Core/Src/jtag.o ./Core/Src/jtag.su ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/stm32f7xx_hal_msp.cyclo ./Core/Src/stm32f7xx_hal_msp.d ./Core/Src/stm32f7xx_hal_msp.o ./Core/Src/stm32f7xx_hal_msp.su ./Core/Src/stm32f7xx_it.cyclo ./Core/Src/stm32f7xx_it.d ./Core/Src/stm32f7xx_it.o ./Core/Src/stm32f7xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32f7xx.cyclo ./Core/Src/system_stm32f7xx.d ./Core/Src/system_stm32f7xx.o ./Core/Src/system_stm32f7xx.su
 
 .PHONY: clean-Core-2f-Src
 

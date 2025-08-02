@@ -66,9 +66,9 @@
 #define USBD_LANGID_STRING     1033
 #define USBD_MANUFACTURER_STRING     "STMicroelectronics"
 #define USBD_PID_FS     22352
-#define USBD_PRODUCT_STRING_FS     "CMSIS-DAP Sahin"
-#define USBD_CONFIGURATION_STRING_FS     "Custom HID Config"
-#define USBD_INTERFACE_STRING_FS     "CMSIS-DAP SahinBaba"
+#define USBD_PRODUCT_STRING_FS     "Sahin CMSIS-DAP "
+#define USBD_CONFIGURATION_STRING_FS     "Interface CMSIS-DAP v2"
+#define USBD_INTERFACE_STRING_FS     "Interface CMSIS-DAP v2"
 
 #define USB_SIZ_BOS_DESC            0x0C
 
@@ -168,14 +168,10 @@ __ALIGN_BEGIN uint8_t USBD_FS_DeviceDesc[USB_LEN_DEV_DESC] __ALIGN_END =
   0x00,                       /*bDeviceSubClass*/
   0x00,                       /*bDeviceProtocol*/
   USB_MAX_EP0_SIZE,           /*bMaxPacketSize*/
-  //LOBYTE(USBD_VID),           /*idVendor*/
-  //HIBYTE(USBD_VID),           /*idVendor*/
-  //LOBYTE(USBD_PID_FS),        /*idProduct*/
-  //HIBYTE(USBD_PID_FS),        /*idProduct*/
-  0x8a,
-  0x2e,
-  0x0c,
-  0x00,
+  LOBYTE(USBD_VID),           /*idVendor*/
+  HIBYTE(USBD_VID),           /*idVendor*/
+  LOBYTE(USBD_PID_FS),        /*idProduct*/
+  HIBYTE(USBD_PID_FS),        /*idProduct*/
   0x00,                       /*bcdDevice rel. 2.00*/
   0x02,
   USBD_IDX_MFC_STR,           /*Index of manufacturer  string*/

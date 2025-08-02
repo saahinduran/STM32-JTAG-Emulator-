@@ -27,6 +27,11 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include  "usbd_ioreq.h"
 
+extern uint8_t wrBuff[128];
+extern uint8_t rdBuff[128];
+extern uint8_t wrIdx;
+extern uint8_t rdIdx;
+extern uint32_t msgAvailable;
 /** @addtogroup STM32_USB_DEVICE_LIBRARY
   * @{
   */
@@ -41,7 +46,7 @@ extern "C" {
   * @{
   */
 #ifndef CUSTOM_HID_EPIN_ADDR
-#define CUSTOM_HID_EPIN_ADDR                         0x85U
+#define CUSTOM_HID_EPIN_ADDR                         0x81U
 #endif /* CUSTOM_HID_EPIN_ADDR */
 
 #ifndef CUSTOM_HID_EPIN_SIZE
@@ -49,14 +54,14 @@ extern "C" {
 #endif /* CUSTOM_HID_EPIN_SIZE */
 
 #ifndef CUSTOM_HID_EPOUT_ADDR
-#define CUSTOM_HID_EPOUT_ADDR                        0x04U
+#define CUSTOM_HID_EPOUT_ADDR                        0x01U
 #endif /* CUSTOM_HID_EPOUT_ADDR */
 
 #ifndef CUSTOM_HID_EPOUT_SIZE
 #define CUSTOM_HID_EPOUT_SIZE                        0x40U
 #endif /* CUSTOM_HID_EPOUT_SIZE*/
 
-#define USB_CUSTOM_HID_CONFIG_DESC_SIZ               41 -9U
+#define USB_CUSTOM_HID_CONFIG_DESC_SIZ               41U
 #define USB_CUSTOM_HID_DESC_SIZ                      9U
 
 #ifndef CUSTOM_HID_HS_BINTERVAL

@@ -1,6 +1,6 @@
 #MicroXplorer Configuration settings - do not modify
-CAD.formats=
-CAD.pinconfig=
+CAD.formats=[]
+CAD.pinconfig=Dual
 CAD.provider=
 ETH.IPParameters=MediaInterface,PHY_Name,PHY_Value,PhyAddress
 ETH.MediaInterface=HAL_ETH_RMII_MODE
@@ -404,8 +404,8 @@ SPI4.VirtualType=VM_SLAVE
 USART3.IPParameters=VirtualMode-Asynchronous
 USART3.VirtualMode-Asynchronous=VM_ASYNC
 USB_DEVICE.CLASS_NAME_FS=CUSTOM_HID
-USB_DEVICE.IPParameters=VirtualMode-CUSTOM_HID_FS,VirtualModeFS,CLASS_NAME_FS,PRODUCT_STRING_CUSTOMHID_FS
-USB_DEVICE.PRODUCT_STRING_CUSTOMHID_FS=CMSIS-DAP Sahin
+USB_DEVICE.IPParameters=VirtualModeFS,CLASS_NAME_FS,VirtualMode-CUSTOM_HID_FS,PRODUCT_STRING_CUSTOMHID_FS
+USB_DEVICE.PRODUCT_STRING_CUSTOMHID_FS=CMSIS-DAP by Sahin
 USB_DEVICE.VirtualMode-CUSTOM_HID_FS=CustomHid
 USB_DEVICE.VirtualModeFS=Custom_Hid_FS
 USB_OTG_FS.IPParameters=VirtualMode

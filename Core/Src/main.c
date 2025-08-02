@@ -26,6 +26,8 @@
 int SPI_Transfer(uint64_t *rdData, uint64_t wrData, uint8_t bitSize);
 #include "jtag.h"
 #include "arm.h"
+#include "DAP.h"
+#include "usbd_customhid.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -72,6 +74,12 @@ UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 
+uint8_t wrBuff[128] = {0};
+uint8_t rdBuff[128] = {0};
+uint8_t wrIdx = 0;
+uint8_t rdIdx = 0;
+uint32_t msgAvailable = 0;
+
 extern USBD_HandleTypeDef hUsbDeviceFS;
 
 /* USER CODE END PV */
@@ -86,6 +94,8 @@ static void MX_SPI4_Init(void);
 /* USER CODE BEGIN PFP */
 
 void Switch_SPI(void);
+void SPI_TMS_Transfer(uint64_t data, uint8_t bits);
+int SPI_Transfer(uint64_t *rdData, uint64_t wrData, uint8_t bitSize);
 
 /* USER CODE END PFP */
 
@@ -112,7 +122,8 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+
+	HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -139,104 +150,42 @@ int main(void)
   Switch_SPI();
   SPI4->CR1 |= (1 << 6);
 
-  uint8_t wrBuff[16] = {0};
-  uint8_t rdBuff[16] = {0};
+  uint64_t tms_seq = 0x00;
+  uint16_t tdi_seq = 0xFF;
+  uint64_t tdo_seq;
+  uint8_t bit_size = 0x4;
 
+  JTAG_Reset();
+/*
+  while(1)
+  {
+	  SPI_TMS_Transfer(tms_seq, bit_size);
+	  SPI_Transfer(&tdo_seq, tdi_seq , bit_size);
 
-  JTAG_Init();
-  JTAG_Reset_Target();
+	  bit_size++;
 
-  uint32_t idCode = JTAG_ReadIDCODE();
+	  SPI_TMS_Transfer(tms_seq, bit_size);
+	  SPI_Transfer(&tdo_seq, tdi_seq , bit_size);
 
+	  bit_size++;
 
-    uint64_t denemeVal = 0;
+	  SPI_TMS_Transfer(tms_seq, bit_size);
+	  SPI_Transfer(&tdo_seq, tdi_seq , bit_size);
 
-    uint8_t irLen;
-    irLen = JTAG_MeasureIRLength();
+	  bit_size++;
 
+	  SPI_TMS_Transfer(tms_seq, bit_size);
+	  SPI_Transfer(&tdo_seq, tdi_seq , bit_size);
 
+	  bit_size++;
 
-    uint32_t dpacc_reg;
+	  SPI_TMS_Transfer(tms_seq, bit_size);
+	  SPI_Transfer(&tdo_seq, tdi_seq , bit_size);
 
-    uint32_t apacc_reg;
+  }
 
-    uint32_t writeVal;
+*/
 
-
-    writeVal = (1 << 30) | (1 << 28) | (1 << 5);
-    //writeVal = 0xFFffFFff;
-
-    DPACC(writeVal, &dpacc_reg, 1, WRITE);
-
-    DPACC(writeVal, &dpacc_reg, 1, READ);
-
-
-    /* read normal data */
-    writeVal = 0x00;
-
-    DPACC(writeVal, &dpacc_reg, 2, WRITE);
-
-    APACC(0x00000002, &apacc_reg, 0,READ);
-
-    APACC( (0x2 | 1 << 29 | 1 << 25) , &apacc_reg, 0,WRITE);
-
-    APACC(0x00000002, &apacc_reg, 0,READ);
-
-
-    APACC(0xE000EDF0, &apacc_reg, 1,WRITE);
-
-    APACC(DUMMY_WRITE_VAL, &apacc_reg, 1,READ);
-
-    /* this command halts the core */
-    APACC(0xA05F0003, &apacc_reg, 3,WRITE);
-
-
-    APACC(0xAA55AA55, &apacc_reg, 3,READ);
-
-    DPACC(writeVal, &dpacc_reg, 1, READ);
-
-    APACC(0xDEADBEEF, &apacc_reg, 3,WRITE);
-
-    APACC(0xAA55AA55, &apacc_reg, 3,READ);
-
-    DPACC(writeVal, &dpacc_reg, 1, READ);
-
-    /* read banked data */
-
-    APACC(0x0, &apacc_reg, 1,WRITE);
-
-    writeVal = 0x10;
-
-    DPACC(writeVal, &dpacc_reg, 2, WRITE);
-
-    APACC(0xAA55AA55, &apacc_reg, 0,READ);
-
-    APACC(0xAA55AA55, &apacc_reg, 1,READ);
-
-    APACC(0xAA55AA55, &apacc_reg, 2,READ);
-
-    APACC(0xAA55AA55, &apacc_reg, 3,READ);
-
-
-    /* read ID */
-
-    writeVal = 0xf0;
-
-    DPACC(writeVal, &dpacc_reg, 2, WRITE);
-
-    APACC(0xAA55AA55, &apacc_reg, 3,READ);
-
-    APACC(0xAA55AA55, &apacc_reg, 2,READ);
-
-
-
-
-
-
-
-
-
-    idCode = JTAG_ReadIDCODE();
 
 
   /* USER CODE END 2 */
@@ -245,6 +194,30 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
+	  uint32_t num;
+	  if(msgAvailable)
+	  {
+		  uint32_t readLen, writeLen;
+		  HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+		  num = DAP_ProcessCommand(rdBuff, wrBuff);
+
+		  readLen = (num & 0xFFFF0000) >> 16;
+		  wrIdx += readLen;
+
+		  writeLen = (num & 0xFFFF);
+
+
+		  USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS,
+		  			  wrBuff, writeLen);
+
+		  msgAvailable = 0;
+	  }
+
+
+	  //DAP_ExecuteCommand(rdBuff, wrBuff);
+
+	  HAL_Delay(10);
 
 
     /* USER CODE END WHILE */
@@ -626,14 +599,23 @@ static inline void xFer(uint32_t *rdData, uint32_t wrData, uint8_t bitSize)
 	}
 
 
-	WaitForStart();
+	//WaitForStart();
 	WaitForComplete();
 
-	*rdData = SPI3->DR;
+	if(bitSize <= 8)
+	{
+		*rdData = *(uint8_t *)&SPI3->DR;
+	}
+	else
+	{
+		*rdData = *(uint16_t *)&SPI3->DR;
+	}
+
+
 }
 
 
-void SPI_TMS_Transfer(uint32_t data, uint8_t bits)
+void SPI_TMS_Transfer(uint64_t data, uint8_t bits)
 {
 
 	int a = 0, b = 0;
@@ -645,8 +627,15 @@ void SPI_TMS_Transfer(uint32_t data, uint8_t bits)
 		b++;
 	}
 
+	if(bits <= 8)
+	{
+		*(uint8_t *)&SPI4->DR = data;
+	}
+	else
+	{
+		SPI4->DR = data;
+	}
 
-	*(uint16_t *)&SPI4->DR = data;
 
 	SPI4->CR2 = ( (bits -1) << 8);
 
@@ -663,7 +652,7 @@ int SPI_Transfer(uint64_t *rdData, uint64_t wrData, uint8_t bitSize)
 	uint32_t tempReadVal, tempWriteVal;
 
 	*rdData = 0;
-	xFer(&tempReadVal, wrData, 16);
+	xFer(&tempReadVal, wrData, bitSize);
 	*rdData = tempReadVal;
 
 #if 0
