@@ -28,6 +28,10 @@
 #include "DAP_config.h"
 #include "DAP.h"
 
+#define IDX_8_BIT 0
+#define IDX_RM1_BIT 1
+#define IDX_RM2_BIT 2
+
 
 // SW Macros
 
@@ -56,6 +60,9 @@
 
 #define PIN_DELAY() PIN_DELAY_SLOW(DAP_Data.clock_delay)
 
+void calculate_xfer_sizes(uint16_t input_len, uint8_t *buff);
+void SPI_TMS_Transfer(uint64_t data, uint8_t bits);
+int SPI_Transfer(uint64_t *rdData, uint64_t wrData, uint8_t bitSize);
 
 // Generate SWJ Sequence
 //   count:  sequence bit count
@@ -66,22 +73,78 @@ void SWJ_Sequence (uint32_t count, const uint8_t *data) {
   uint32_t val;
   uint32_t n;
 
-  val = 0U;
-  n = 0U;
-  while (count--) {
-    if (n == 0U) {
-      val = *data++;
-      n = 8U;
-    }
-    if (val & 1U) {
-      PIN_SWDIO_TMS_SET();
-    } else {
-      PIN_SWDIO_TMS_CLR();
-    }
-    SW_CLOCK_CYCLE();
-    val >>= 1;
-    n--;
-  }
+  uint8_t xFerSizes[3];
+
+  	uint8_t dummyVal = 0;
+  	calculate_xfer_sizes(count, xFerSizes);
+
+  	uint32_t currentBit = 0;
+
+
+
+  	while(xFerSizes[IDX_8_BIT])
+  	{
+  		uint8_t tms_val = *data;
+  		uint64_t tdo_val;
+
+  		if(tms_val != 0 && currentBit != 0)
+  		{
+  			dummyVal = 1;
+  		}
+
+  		SPI_TMS_Transfer(tms_val, 8);
+  		SPI_Transfer(&tdo_val, 0 , 8);
+
+  		data++;
+  		xFerSizes[IDX_8_BIT]--;
+  		currentBit+= 8;
+  	}
+
+  	while(xFerSizes[IDX_RM1_BIT])
+  	{
+  		uint32_t delay_cnt = 2500;
+
+  		while(delay_cnt--)
+  	    {
+  		  __asm("nop");
+  	    }
+
+  		uint16_t tms_val = extract_nbits_lsb(data, currentBit, xFerSizes[IDX_RM1_BIT]);
+  		uint64_t tdo_val;
+
+  		SPI_TMS_Transfer(tms_val, xFerSizes[IDX_RM1_BIT]);
+  		SPI_Transfer(&tdo_val, 0 , xFerSizes[IDX_RM1_BIT]);
+
+
+  		currentBit+= xFerSizes[IDX_RM1_BIT];
+
+  		xFerSizes[IDX_RM1_BIT] = 0;
+
+  	}
+
+  	while(xFerSizes[IDX_RM2_BIT])
+  	{
+  		//TODO: extract bits!!
+  		uint32_t delay_cnt = 2000;
+
+  		while(delay_cnt--)
+  		{
+  		  __asm("nop");
+  		}
+
+  		uint16_t tms_val = extract_nbits_lsb(data, currentBit, xFerSizes[IDX_RM2_BIT]);
+  		uint64_t tdo_val;
+
+  		SPI_TMS_Transfer(tms_val, xFerSizes[IDX_RM2_BIT]);
+  		SPI_Transfer(&tdo_val, 0 , xFerSizes[IDX_RM2_BIT]);
+
+
+  		currentBit+= xFerSizes[IDX_RM2_BIT];
+
+  		xFerSizes[IDX_RM2_BIT] = 0;
+
+  	}
+
 }
 #endif
 

@@ -32,26 +32,54 @@
 uint8_t TMS_SEQ_ARR[1024];
 uint8_t TDI_SEQ_ARR[1024];
 uint8_t TDO_SEQ_ARR[1024];
+uint8_t TDO_PROCESSED_SEQ_ARR[1024];
 
 int SPI_Transfer(uint64_t *rdData, uint64_t wrData, uint8_t bitSize);
 
 
 void SPI_TMS_Transfer(uint64_t data, uint8_t bits);
 
-// Extracts 8 bits from a uint8_t array (LSB-first), starting at `bit_index`
-// Returns the extracted bits right-aligned
-uint8_t extract_nbits_lsb(const uint8_t *src, size_t bit_index, size_t n) {
-    size_t byte_index = bit_index / 8;
-    size_t bit_offset = bit_index % 8;
+void copy_bits_lsb(const uint8_t *src, uint32_t srcBitIndex,
+                   uint32_t bitLen,
+                   uint8_t *dst, uint32_t dstBitIndex)
+{
+    for (uint32_t i = 0; i < bitLen; i++)
+    {
+        // Locate the bit in the source
+        uint32_t sByte = (srcBitIndex + i) / 8;
+        uint32_t sBit  = (srcBitIndex + i) % 8; // LSB-first
+        uint8_t  bit   = (src[sByte] >> sBit) & 1;
 
-    // Load 2 bytes into a 16-bit window to cover any possible crossing
-    uint16_t window = ((uint16_t)src[byte_index]) |
-                      ((uint16_t)src[byte_index + 1] << 8);
+        // Locate where to put it in the destination
+        uint32_t dByte = (dstBitIndex + i) / 8;
+        uint32_t dBit  = (dstBitIndex + i) % 8; // LSB-first
 
-    // Right-shift to remove earlier bits, then mask n bits
-    return (window >> bit_offset) & ((1U << n) - 1);
+        // Clear and set the destination bit
+        dst[dByte] &= ~(1U << dBit);
+        dst[dByte] |=  (bit << dBit);
+    }
 }
 
+
+// Extracts 8 bits from a uint8_t array (LSB-first), starting at `bit_index`
+// Returns the extracted bits right-aligned
+// Extract up to 16 bits from a bitstream (LSB-first)
+uint16_t extract_nbits_lsb(const uint8_t *buf, size_t bit_offset, size_t n) {
+    if (n == 0 || n > 16) return 0;
+
+    size_t byte_offset = bit_offset / 8;
+    size_t bit_in_byte = bit_offset % 8;
+
+    // Read 3 bytes to cover the worst case (bits span across 3 bytes)
+    uint32_t temp = buf[byte_offset] |
+                   ((uint32_t)buf[byte_offset + 1] << 8) |
+                   ((uint32_t)buf[byte_offset + 2] << 16);
+
+    // Right shift to the relevant bit, then mask
+    return (temp >> bit_in_byte) & ((1U << n) - 1);
+}
+
+#if 0
 void write_nbits_lsb(uint8_t *dst, size_t bit_index, size_t n, uint8_t value) {
     size_t byte_index = bit_index / 8;
     size_t bit_offset = bit_index % 8;
@@ -67,6 +95,27 @@ void write_nbits_lsb(uint8_t *dst, size_t bit_index, size_t n, uint8_t value) {
     // Store back
     dst[byte_index] = window & 0xFF;
     dst[byte_index + 1] = (window >> 8) & 0xFF;
+}
+#endif
+void write_nbits_lsb(uint8_t *buf, size_t bit_offset, size_t n, uint16_t value) {
+    if (n == 0 || n > 16) return;
+
+    size_t byte_offset = bit_offset / 8;
+    size_t bit_in_byte = bit_offset % 8;
+
+    // Read 3 bytes to cover the worst case (spanning across 3 bytes)
+    uint32_t temp = buf[byte_offset] |
+                   ((uint32_t)buf[byte_offset + 1] << 8) |
+                   ((uint32_t)buf[byte_offset + 2] << 16);
+
+    // Mask and insert new value
+    uint32_t mask = ((1U << n) - 1U) << bit_in_byte;
+    temp = (temp & ~mask) | (((uint32_t)(value & ((1U << n) - 1))) << bit_in_byte);
+
+    // Write the result back
+    buf[byte_offset]     = temp & 0xFF;
+    buf[byte_offset + 1] = (temp >> 8) & 0xFF;
+    buf[byte_offset + 2] = (temp >> 16) & 0xFF;
 }
 
 void fill_tms_buffer(uint32_t total_write_bit_cnt, uint32_t n, uint8_t tms_val)
@@ -115,34 +164,123 @@ void fill_tdi_buffer(uint32_t total_write_bit_cnt, uint32_t n, uint8_t *tdi_val_
 	}
 }
 
+#define IDX_8_BIT 0
+#define IDX_RM1_BIT 1
+#define IDX_RM2_BIT 2
+void calculate_xfer_sizes(uint16_t input_len, uint8_t *buff)
+{
+	int isunAligned = input_len % 8 < 4 && input_len % 8 != 0;
+	int isGreaterThan8 = input_len > 8;
+
+	if(isunAligned && isGreaterThan8)
+	{
+		buff[IDX_8_BIT] = input_len / 8 -2;
+		buff[IDX_RM1_BIT] = 4;
+		buff[IDX_RM2_BIT] = input_len - buff[IDX_8_BIT]*8 - buff[IDX_RM1_BIT];
+	}
+
+	else if (input_len < 8)
+	{
+		buff[IDX_8_BIT] = 0;
+		buff[IDX_RM1_BIT] = input_len % 8;
+		buff[IDX_RM2_BIT] = 0;
+	}
+	else
+	{
+		buff[IDX_8_BIT] = input_len /8;
+		buff[IDX_RM1_BIT] = input_len % 8;
+		buff[IDX_RM2_BIT] = 0;
+	}
+
+}
+
 void apply_jtag_xfer(const uint8_t *tdi, const uint8_t *tms, uint8_t *tdo, uint32_t cnt)
 {
+	uint8_t xFerSizes[3];
+
+	uint8_t dummyVal = 0;
+	calculate_xfer_sizes(cnt, xFerSizes);
+
 	uint32_t currentBit = 0;
 
-	while(cnt)
+	uint8_t *tms_seq_arr = tms;
+
+	uint8_t *tdi_seq_arr = tdi;
+
+
+	while(xFerSizes[IDX_8_BIT])
 	{
 		uint8_t tms_val = *tms;
 		uint8_t tdi_val = *tdi;
 		uint64_t tdo_val;
-		if(cnt > 8)
+		if(tms_val != 0 && currentBit != 0)
 		{
-			SPI_TMS_Transfer(tms_val, 8);
-			SPI_Transfer(&tdo_val, tdi_val , 8);
-
-			*tdo = (uint8_t)tdo_val;
-
-			cnt-= 8;
-			tms++;
-			tdi++;
-			tdo++;
+			dummyVal = 1;
 		}
-		else
-		{
-			SPI_TMS_Transfer(tms_val, cnt);
-			SPI_Transfer(tdo, tdi_val , cnt);
-			cnt = 0;
-		}
+
+		SPI_TMS_Transfer(tms_val, 8);
+		SPI_Transfer(&tdo_val, tdi_val , 8);
+
+		*tdo = (uint8_t)tdo_val;
+
+		tms++;
+		tdi++;
+		tdo++;
+
+		xFerSizes[IDX_8_BIT]--;
+
+		currentBit+= 8;
 	}
+
+	while(xFerSizes[IDX_RM1_BIT])
+	{
+		uint32_t delay_cnt = 2500;
+
+		while(delay_cnt--)
+	    {
+		  __asm("nop");
+	    }
+
+		uint16_t tms_val = extract_nbits_lsb(tms_seq_arr, currentBit, xFerSizes[IDX_RM1_BIT]);
+		uint16_t tdi_val = extract_nbits_lsb(tdi_seq_arr, currentBit, xFerSizes[IDX_RM1_BIT]);;
+		uint64_t tdo_val;
+
+		SPI_TMS_Transfer(tms_val, xFerSizes[IDX_RM1_BIT]);
+		SPI_Transfer(&tdo_val, tdi_val , xFerSizes[IDX_RM1_BIT]);
+
+		write_nbits_lsb(TDO_SEQ_ARR, currentBit, xFerSizes[IDX_RM1_BIT], tdo_val);
+
+		currentBit+= xFerSizes[IDX_RM1_BIT];
+
+		xFerSizes[IDX_RM1_BIT] = 0;
+
+	}
+
+	while(xFerSizes[IDX_RM2_BIT])
+	{
+		//TODO: extract bits!!
+		uint32_t delay_cnt = 2000;
+
+		while(delay_cnt--)
+		{
+		  __asm("nop");
+		}
+
+		uint16_t tms_val = extract_nbits_lsb(tms_seq_arr, currentBit, xFerSizes[IDX_RM2_BIT]);
+		uint16_t tdi_val = extract_nbits_lsb(tdi_seq_arr, currentBit, xFerSizes[IDX_RM2_BIT]);;
+		uint64_t tdo_val;
+
+		SPI_TMS_Transfer(tms_val, xFerSizes[IDX_RM2_BIT]);
+		SPI_Transfer(&tdo_val, tdi_val , xFerSizes[IDX_RM2_BIT]);
+
+		write_nbits_lsb(TDO_SEQ_ARR, currentBit, xFerSizes[IDX_RM2_BIT], tdo_val);
+
+		currentBit+= xFerSizes[IDX_RM2_BIT];
+
+		xFerSizes[IDX_RM2_BIT] = 0;
+
+	}
+
 
 }
 void shift_right_bitstream_lsb(uint8_t *data, size_t num_bits, size_t n) {
@@ -223,8 +361,10 @@ void shift_right_bitstream_lsb(uint8_t *data, size_t num_bits, size_t n) {
 //   tdi:    pointer to TDI generated data
 //   tdo:    pointer to TDO captured data
 //   return: none
-void JTAG_Sequence (uint32_t count, const uint8_t *request, uint8_t *response)
+uint32_t JTAG_Sequence (uint32_t count, const uint8_t *request, uint8_t *response)
 {
+	static int cnt = 0;
+	int dummyVal = 31;
   uint32_t total_write_bit_cnt = 0;
   uint32_t total_read_bit_cnt = 0;
 
@@ -236,6 +376,19 @@ void JTAG_Sequence (uint32_t count, const uint8_t *request, uint8_t *response)
   uint32_t tms_seq_val = 0;
 
   uint32_t i;
+
+  uint8_t *req_base = request;
+
+  memset(TMS_SEQ_ARR, 0, 1024);
+
+  memset(TDI_SEQ_ARR, 0, 1024);
+
+  memset(TDO_SEQ_ARR, 0, 1024);
+
+  memset(TDO_PROCESSED_SEQ_ARR, 0, 1024);
+
+
+  cnt++;
 
 
   for(i = 0; i < count; i++)
@@ -271,11 +424,53 @@ void JTAG_Sequence (uint32_t count, const uint8_t *request, uint8_t *response)
 
   apply_jtag_xfer(TDI_SEQ_ARR, TMS_SEQ_ARR, TDO_SEQ_ARR, total_write_bit_cnt);
 
-  //shift_bitstream_lsb(TDO_SEQ_ARR, total_read_bit_cnt, -7);
+  total_write_bit_cnt = 0;
 
-  //shift_right_bitstream_lsb(TDO_SEQ_ARR, 327, 7);
+  total_read_bit_cnt = 0;
 
-  shift_right_bitstream_lsb(TDO_SEQ_ARR, total_write_bit_cnt, 7);
+  for(i = 0; i < count; i++)
+  {
+	  uint32_t n;
+
+
+
+	  n = *req_base & JTAG_SEQUENCE_TCK;
+
+	  if (n == 0U)
+  	  {
+  		  n = 64U;
+  	  }
+
+
+
+	  if(*req_base & JTAG_SEQUENCE_TDO)
+	  {
+
+		  copy_bits_lsb(TDO_SEQ_ARR, total_write_bit_cnt, n, TDO_PROCESSED_SEQ_ARR, total_read_bit_cnt);
+		  total_read_bit_cnt += n;
+
+		  if(total_read_bit_cnt % 8 )
+		  {
+			  total_read_bit_cnt = ( (total_read_bit_cnt / 8) +1) *8;
+		  }
+
+
+	  }
+
+	  total_write_bit_cnt += n;
+
+
+	  req_base += ( (n + 7U) /8U ) + 1;
+
+    }
+
+
+  //shift_right_bitstream_lsb(TDO_SEQ_ARR, total_write_bit_cnt, total_write_bit_cnt - total_read_bit_cnt);
+
+
+  memcpy(response, TDO_PROCESSED_SEQ_ARR, total_read_bit_cnt /8);
+
+  return total_read_bit_cnt / 8;
 
 }
 
@@ -320,6 +515,63 @@ static void JTAG_IR_##speed (uint32_t ir) {                                     
   PIN_TMS_CLR();                                                                \
   JTAG_CYCLE_TCK();                         /* Idle */                          \
   PIN_TDI_OUT(1U);                                                              \
+}
+
+static void JTAG_IR_Benim (uint32_t ir) {
+  uint32_t total_bit_cnt = 0;
+  uint32_t n;
+
+  uint8_t tms_buff[64] = {0};
+  uint8_t tdi_buff[64] = {0};
+
+  write_nbits_lsb(tms_buff, 0, 4, 0x03);
+
+  total_bit_cnt += 4;
+
+  write_nbits_lsb(tdi_buff, 0, 4, 0x00);
+
+
+  n = DAP_Data.jtag_dev.ir_before[DAP_Data.jtag_dev.index];
+
+  write_nbits_lsb(tms_buff, total_bit_cnt, n, 0x00);
+
+  write_nbits_lsb(tdi_buff, total_bit_cnt, n, 0xff);
+
+
+  n = DAP_Data.jtag_dev.ir_length[DAP_Data.jtag_dev.index];
+
+  write_nbits_lsb(tms_buff, total_bit_cnt, n, 0);
+
+  write_nbits_lsb(tdi_buff, total_bit_cnt, n, ir);
+
+  total_bit_cnt += n;
+
+
+  n = DAP_Data.jtag_dev.ir_after[DAP_Data.jtag_dev.index];
+  if (n)
+  {
+
+	  write_nbits_lsb(tdi_buff, total_bit_cnt, n, 0xff);
+	  write_nbits_lsb(tms_buff, total_bit_cnt, n, 0x0);
+
+	  total_bit_cnt += n;
+
+	  write_nbits_lsb(tms_buff, total_bit_cnt, 1, 1);
+
+	  total_bit_cnt++;
+
+  }
+  else
+  {
+	  write_nbits_lsb(tms_buff, total_bit_cnt, 1, 1);
+
+	  total_bit_cnt++;
+  }
+
+  write_nbits_lsb(tms_buff, total_bit_cnt, 3, 0x01);
+
+  total_bit_cnt += 3;
+
 }
 
 

@@ -15,4 +15,4 @@
 ../Core/Inc/DAP_config.h:454:17:PIN_nTRST_OUT	16	static
 ../Core/Inc/DAP_config.h:463:17:PIN_nRESET_IN	4	static
 ../Core/Inc/DAP_config.h:472:17:PIN_nRESET_OUT	16	static
-../Core/Src/SW_DP.c:65:6:SWJ_Sequence	32	static,ignoring_inline_asm
+../Core/Src/SW_DP.c:72:6:SWJ_Sequence	96	static,ignoring_inline_asm

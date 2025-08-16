@@ -156,32 +156,23 @@ int main(void)
   uint8_t bit_size = 0x4;
 
   JTAG_Reset();
-/*
+  /*
+  uint32_t wait_amt = 5000;
   while(1)
   {
-	  SPI_TMS_Transfer(tms_seq, bit_size);
-	  SPI_Transfer(&tdo_seq, tdi_seq , bit_size);
+	  uint32_t delay_cnt = wait_amt;
 
-	  bit_size++;
+	  SPI_TMS_Transfer(tms_seq, 4);
+	  SPI_Transfer(&tdo_seq, tdi_seq , 4);
 
-	  SPI_TMS_Transfer(tms_seq, bit_size);
-	  SPI_Transfer(&tdo_seq, tdi_seq , bit_size);
+	  while(wait_amt--)
+	  {
+		  __asm("nop");
+	  }
 
-	  bit_size++;
 
-	  SPI_TMS_Transfer(tms_seq, bit_size);
-	  SPI_Transfer(&tdo_seq, tdi_seq , bit_size);
-
-	  bit_size++;
-
-	  SPI_TMS_Transfer(tms_seq, bit_size);
-	  SPI_Transfer(&tdo_seq, tdi_seq , bit_size);
-
-	  bit_size++;
-
-	  SPI_TMS_Transfer(tms_seq, bit_size);
-	  SPI_Transfer(&tdo_seq, tdi_seq , bit_size);
-
+	  SPI_TMS_Transfer(tms_seq, 8);
+	  SPI_Transfer(&tdo_seq, tdi_seq , 8);
   }
 
 */
@@ -200,13 +191,14 @@ int main(void)
 	  {
 		  uint32_t readLen, writeLen;
 		  HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+		  __disable_irq();
 		  num = DAP_ProcessCommand(rdBuff, wrBuff);
-
+		  __enable_irq();
 		  readLen = (num & 0xFFFF0000) >> 16;
 		  wrIdx += readLen;
 
 		  writeLen = (num & 0xFFFF);
-
+		  //writeLen = 0x40;
 
 		  USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS,
 		  			  wrBuff, writeLen);
@@ -217,7 +209,7 @@ int main(void)
 
 	  //DAP_ExecuteCommand(rdBuff, wrBuff);
 
-	  HAL_Delay(10);
+	  //HAL_Delay(10);
 
 
     /* USER CODE END WHILE */
@@ -587,7 +579,19 @@ static inline void WaitForComplete(void)
 
 static inline void xFer(uint32_t *rdData, uint32_t wrData, uint8_t bitSize)
 {
+
+	WaitForComplete();
+	uint8_t dummyStop = 1;
+
+
+
 	SPI3->CR2 = ( (bitSize -1) << 8);
+
+
+	if(bitSize == 8)
+	{
+		dummyStop = 0;
+	}
 
 	if(bitSize <= 8)
 	{
@@ -599,7 +603,8 @@ static inline void xFer(uint32_t *rdData, uint32_t wrData, uint8_t bitSize)
 	}
 
 
-	//WaitForStart();
+
+
 	WaitForComplete();
 
 	if(bitSize <= 8)
@@ -620,12 +625,16 @@ void SPI_TMS_Transfer(uint64_t data, uint8_t bits)
 
 	int a = 0, b = 0;
 
-
-
-	while( (SPI3->SR & (0x1 << 7) ) )
+	while( (SPI4->SR & (0x1 << 7) ) )
 	{
 		b++;
 	}
+
+	while( ( (SPI4->SR >> 11) & 0x3 ) != 0) ;
+
+
+	uint32_t dummyRead = SPI4->DR;
+
 
 	if(bits <= 8)
 	{
@@ -655,80 +664,6 @@ int SPI_Transfer(uint64_t *rdData, uint64_t wrData, uint8_t bitSize)
 	xFer(&tempReadVal, wrData, bitSize);
 	*rdData = tempReadVal;
 
-#if 0
-
-
-	for(i; i < halfWordIterationCnt; i++)
-	{
-		xFer(&tempReadVal, wrData, 16);
-		wrData >>= 16;
-		*rdData |= tempReadVal;
-
-		bitSize -= 16;
-	}
-
-	if( bitSize % 16 == 0 )
-	{
-		xFer(&tempReadVal, wrData, 16);
-		*rdData |= (tempReadVal << 16);
-		wrData >>= 16;
-
-		bitSize -= 16;
-	}
-	else
-	{
-		uint64_t tempValRd =0, tempValHighRd = 0, tempValLowRd = 0;
-
-		if(bitSize % 16 < 4 && bitSize > 16)
-		{
-
-			uint8_t xFerLength = bitSize -4;
-
-			/* adjust transfer length, bitSize -4; */
-			xFer(&tempValLowRd, wrData, xFerLength);
-
-			wrData >>= xFerLength;
-
-			/* adjust transfer length, bitSize -4; */
-
-			xFer(&tempValHighRd, wrData, 4);
-
-			tempValRd |= tempValLowRd | ( (tempValHighRd & 0xF) << xFerLength) << 16;
-
-			*rdData |= tempValRd;
-
-
-
-		}
-		else if(bitSize % 16 > 4 && bitSize > 16)
-		{
-			uint8_t xFerLength = bitSize -16;
-			uint32_t xFerMask = (1 << xFerLength) -1;
-
-			/* adjust transfer length, bitSize -4; */
-
-			xFer(&tempValLowRd, wrData, 16);
-			wrData >>= xFerLength;
-
-			/* adjust transfer length, bitSize -4; */
-			xFer(&tempValHighRd, wrData, xFerLength);
-
-			tempValRd |= tempValLowRd | ( (tempValHighRd & xFerMask) << 16);
-
-		}
-
-		else
-		{
-			uint8_t xFerLength = bitSize;
-			xFer(&tempValLowRd, wrData, xFerLength);
-			tempValRd = tempValLowRd;
-
-		}
-	}
-
-	//Switch_GPIO();
-
-#endif
 }
 /* USER CODE END 4 */
 

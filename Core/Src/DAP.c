@@ -552,21 +552,11 @@ static uint32_t DAP_JTAG_Sequence(const uint8_t *request, uint8_t *response) {
   response_count = 1U;
 
   sequence_count = *request++;
-  while (sequence_count) {
 
-    JTAG_Sequence(sequence_count, request, response);
+  response_count = JTAG_Sequence(sequence_count, request, response);
 
-    request += count;
-    request_count += count + 1U;
-#if (DAP_JTAG != 0)
-    if ((sequence_info & JTAG_SEQUENCE_TDO) != 0U) {
-      response += count;
-      response_count += count;
-    }
-#endif
-  }
 
-  return ((request_count << 16) | response_count);
+  return ((request_count << 16) | response_count) +1;
 }
 
 

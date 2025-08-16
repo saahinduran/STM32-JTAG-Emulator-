@@ -275,7 +275,7 @@ extern "C"
 // Functions
 extern void     SWJ_Sequence    (uint32_t count, const uint8_t *data);
 extern void     SWD_Sequence    (uint32_t info,  const uint8_t *swdo, uint8_t *swdi);
-extern void     JTAG_Sequence   (uint32_t info,  const uint8_t *tdi,  uint8_t *tdo);
+extern uint32_t     JTAG_Sequence   (uint32_t info,  const uint8_t *tdi,  uint8_t *tdo);
 extern void     JTAG_IR         (uint32_t ir);
 extern uint32_t JTAG_ReadIDCode (void);
 extern void     JTAG_WriteAbort (uint32_t data);
