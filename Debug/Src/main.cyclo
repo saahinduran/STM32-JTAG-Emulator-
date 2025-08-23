@@ -1,8 +1,0 @@
-../Src/main.c:95:5:main	1
-../Src/main.c:144:6:SystemClock_Config	4
-../Src/main.c:201:13:MX_ETH_Init	2
-../Src/main.c:250:13:MX_SPI1_Init	2
-../Src/main.c:290:13:MX_SPI4_Init	2
-../Src/main.c:329:13:MX_USART3_UART_Init	2
-../Src/main.c:364:13:MX_GPIO_Init	1
-../Src/main.c:466:6:Error_Handler	1

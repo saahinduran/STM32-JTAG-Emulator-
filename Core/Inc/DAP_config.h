@@ -69,7 +69,7 @@ This information includes:
 
 /// Indicate that Serial Wire Debug (SWD) communication mode is available at the Debug Access Port.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.
-#define DAP_SWD                 0               ///< SWD Mode:  1 = available, 0 = not available.
+#define DAP_SWD                 1               ///< SWD Mode:  1 = available, 0 = not available.
 
 /// Indicate that JTAG communication mode is available at the Debug Port.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.
@@ -86,7 +86,7 @@ This information includes:
 /// Default communication speed on the Debug Access Port for SWD and JTAG mode.
 /// Used to initialize the default SWD/JTAG clock frequency.
 /// The command \ref DAP_SWJ_Clock can be used to overwrite this default setting.
-#define DAP_DEFAULT_SWJ_CLOCK   1000000U        ///< Default SWD/JTAG clock frequency in Hz.
+#define DAP_DEFAULT_SWJ_CLOCK   13500000U        ///< Default SWD/JTAG clock frequency in Hz.
 
 /// Maximum Package Size for Command and Response data.
 /// This configuration settings is used to optimize the communication performance with the
@@ -361,7 +361,6 @@ static void     PIN_SWCLK_TCK_CLR (void) {
 \return Current status of the SWDIO/TMS DAP hardware I/O pin.
 */
 static uint32_t PIN_SWDIO_TMS_IN  (void) {
-	HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
   return (0U);
 }
 
@@ -369,14 +368,14 @@ static uint32_t PIN_SWDIO_TMS_IN  (void) {
 Set the SWDIO/TMS DAP hardware I/O pin to high level.
 */
 static void     PIN_SWDIO_TMS_SET (void) {
-	HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+
 }
 
 /** SWDIO/TMS I/O pin: Set Output to Low.
 Set the SWDIO/TMS DAP hardware I/O pin to low level.
 */
 static void     PIN_SWDIO_TMS_CLR (void) {
-	HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+
 }
 
 /** SWDIO I/O pin: Get Input (used in SWD mode only).
@@ -460,9 +459,14 @@ static void     PIN_nTRST_OUT  (uint32_t bit) {
 /** nRESET I/O pin: Get Input.
 \return Current status of the nRESET DAP hardware I/O pin.
 */
+#define JTAG_SRST_PORT	 GPIOD
+#define JTAG_SRST_PIN    GPIO_PIN_2 // Optional
+
 static uint32_t PIN_nRESET_IN  (void) {
-  return (0U);
+  return (uint32_t)HAL_GPIO_ReadPin(JTAG_SRST_PORT, JTAG_SRST_PIN);
 }
+
+
 
 /** nRESET I/O pin: Set Output.
 \param bit target device hardware reset pin status:
@@ -470,7 +474,16 @@ static uint32_t PIN_nRESET_IN  (void) {
            - 1: release device hardware reset.
 */
 static void     PIN_nRESET_OUT (uint32_t bit) {
-  ;
+	if(bit)
+	{
+		HAL_GPIO_WritePin(JTAG_SRST_PORT, JTAG_SRST_PIN, GPIO_PIN_RESET);
+	}
+
+	else
+	{
+		HAL_GPIO_WritePin(JTAG_SRST_PORT, JTAG_SRST_PIN, GPIO_PIN_SET);
+	}
+
 }
 
 ///@}
@@ -494,14 +507,36 @@ It is recommended to provide the following LEDs for status indication:
            - 1: Connect LED ON: debugger is connected to CMSIS-DAP Debug Unit.
            - 0: Connect LED OFF: debugger is not connected to CMSIS-DAP Debug Unit.
 */
-__STATIC_INLINE void LED_CONNECTED_OUT (uint32_t bit) {}
+__STATIC_INLINE void LED_CONNECTED_OUT (uint32_t bit)
+{
+	if(bit)
+	{
+		HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, 1);
+	}
+	else
+	{
+		HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, 0);
+	}
+
+}
 
 /** Debug Unit: Set status Target Running LED.
 \param bit status of the Target Running LED.
            - 1: Target Running LED ON: program execution in target started.
            - 0: Target Running LED OFF: program execution in target stopped.
 */
-__STATIC_INLINE void LED_RUNNING_OUT (uint32_t bit) {}
+__STATIC_INLINE void LED_RUNNING_OUT (uint32_t bit)
+{
+	if(bit)
+	{
+		HAL_GPIO_WritePin(LD1_GPIO_Port, LD1_Pin, 1);
+	}
+	else
+	{
+		HAL_GPIO_WritePin(LD1_GPIO_Port, LD1_Pin, 0);
+	}
+
+}
 
 ///@}
 
@@ -557,7 +592,7 @@ when a device needs a time-critical unlock sequence that enables the debug port.
         1 = a device specific reset sequence is implemented.
 */
 __STATIC_INLINE uint8_t RESET_TARGET (void) {
-  return (0U);             // change to '1' when a device reset sequence is implemented
+  return (1U);             // change to '1' when a device reset sequence is implemented
 }
 
 ///@}

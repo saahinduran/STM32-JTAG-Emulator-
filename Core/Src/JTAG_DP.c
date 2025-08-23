@@ -363,6 +363,15 @@ void shift_right_bitstream_lsb(uint8_t *data, size_t num_bits, size_t n) {
 //   return: none
 uint32_t JTAG_Sequence (uint32_t count, const uint8_t *request, uint8_t *response)
 {
+	static volatile uint32_t firstTime;
+	static volatile uint32_t elapsed_time;
+
+	static volatile uint32_t memcpy_elapsed_time;
+	static volatile uint32_t memcpy_first;
+
+	firstTime = DWT->CYCCNT;
+
+
 	static int cnt = 0;
 	int dummyVal = 31;
   uint32_t total_write_bit_cnt = 0;
@@ -379,13 +388,13 @@ uint32_t JTAG_Sequence (uint32_t count, const uint8_t *request, uint8_t *respons
 
   uint8_t *req_base = request;
 
-  memset(TMS_SEQ_ARR, 0, 1024);
+  memset(TMS_SEQ_ARR, 0, 256);
 
-  memset(TDI_SEQ_ARR, 0, 1024);
+  memset(TDI_SEQ_ARR, 0, 256);
 
-  memset(TDO_SEQ_ARR, 0, 1024);
+  memset(TDO_SEQ_ARR, 0, 256);
 
-  memset(TDO_PROCESSED_SEQ_ARR, 0, 1024);
+  memset(TDO_PROCESSED_SEQ_ARR, 0, 256);
 
 
   cnt++;
@@ -467,8 +476,13 @@ uint32_t JTAG_Sequence (uint32_t count, const uint8_t *request, uint8_t *respons
 
   //shift_right_bitstream_lsb(TDO_SEQ_ARR, total_write_bit_cnt, total_write_bit_cnt - total_read_bit_cnt);
 
+  memcpy_first = DWT->CYCCNT;
 
   memcpy(response, TDO_PROCESSED_SEQ_ARR, total_read_bit_cnt /8);
+
+  memcpy_elapsed_time = DWT ->CYCCNT - memcpy_first;
+
+  elapsed_time = DWT->CYCCNT - firstTime;
 
   return total_read_bit_cnt / 8;
 

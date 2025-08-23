@@ -31,7 +31,7 @@ extern uint8_t wrBuff[128];
 extern uint8_t rdBuff[128];
 extern uint8_t wrIdx;
 extern uint8_t rdIdx;
-extern uint32_t msgAvailable;
+extern volatile uint32_t msgAvailable;
 /** @addtogroup STM32_USB_DEVICE_LIBRARY
   * @{
   */

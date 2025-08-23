@@ -729,7 +729,6 @@ static uint8_t USBD_CUSTOM_HID_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
   return (uint8_t)USBD_OK;
 }
 
-
 /**
   * @brief  USBD_CUSTOM_HID_ReceivePacket
   *         prepare OUT Endpoint for reception

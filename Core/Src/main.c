@@ -78,7 +78,7 @@ uint8_t wrBuff[128] = {0};
 uint8_t rdBuff[128] = {0};
 uint8_t wrIdx = 0;
 uint8_t rdIdx = 0;
-uint32_t msgAvailable = 0;
+volatile uint32_t msgAvailable;
 
 extern USBD_HandleTypeDef hUsbDeviceFS;
 
@@ -96,6 +96,7 @@ static void MX_SPI4_Init(void);
 void Switch_SPI(void);
 void SPI_TMS_Transfer(uint64_t data, uint8_t bits);
 int SPI_Transfer(uint64_t *rdData, uint64_t wrData, uint8_t bitSize);
+void SPI_TMSRead(uint64_t *ptr, uint8_t bits);
 
 /* USER CODE END PFP */
 
@@ -143,6 +144,7 @@ int main(void)
   MX_SPI1_Init();
   MX_SPI4_Init();
   MX_USB_DEVICE_Init();
+
   /* USER CODE BEGIN 2 */
 
   RCC->APB1ENR |= (1 << 15);
@@ -150,47 +152,34 @@ int main(void)
   Switch_SPI();
   SPI4->CR1 |= (1 << 6);
 
-  uint64_t tms_seq = 0x00;
-  uint16_t tdi_seq = 0xFF;
-  uint64_t tdo_seq;
-  uint8_t bit_size = 0x4;
+  SPI3->CR1 &= ~0x38;
 
-  JTAG_Reset();
-  /*
-  uint32_t wait_amt = 5000;
-  while(1)
-  {
-	  uint32_t delay_cnt = wait_amt;
+  SPI3->CR1 |= (0x7 << 3);
 
-	  SPI_TMS_Transfer(tms_seq, 4);
-	  SPI_Transfer(&tdo_seq, tdi_seq , 4);
+  SPI4->CR1 |= (1 << 15);
+  SPI4->CR1 |= (1 << 14);
 
-	  while(wait_amt--)
-	  {
-		  __asm("nop");
-	  }
-
-
-	  SPI_TMS_Transfer(tms_seq, 8);
-	  SPI_Transfer(&tdo_seq, tdi_seq , 8);
-  }
-
-*/
-
-
+  //JTAG_Init();
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  //__enable_irq();
+  DWT->LAR = 0xC5ACCE55;
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CYCCNT = 0;
+  DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;
+
   while (1)
   {
 
 	  uint32_t num;
+
 	  if(msgAvailable)
 	  {
 		  uint32_t readLen, writeLen;
-		  HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+		  //HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 		  __disable_irq();
 		  num = DAP_ProcessCommand(rdBuff, wrBuff);
 		  __enable_irq();
@@ -625,6 +614,8 @@ void SPI_TMS_Transfer(uint64_t data, uint8_t bits)
 
 	int a = 0, b = 0;
 
+	SPI4->CR2 = ( (bits -1) << 8);
+
 	while( (SPI4->SR & (0x1 << 7) ) )
 	{
 		b++;
@@ -642,12 +633,43 @@ void SPI_TMS_Transfer(uint64_t data, uint8_t bits)
 	}
 	else
 	{
-		SPI4->DR = data;
+		*(uint16_t *)&SPI4->DR = data;
 	}
 
+}
 
-	SPI4->CR2 = ( (bits -1) << 8);
+void SPI_TMSRead(uint64_t *ptr, uint8_t bits)
+{
+	if(bits <= 8)
+	{
+		*ptr = *(uint8_t *)&SPI4->DR;
+	}
+	else
+	{
+		*ptr = *(uint16_t *)&SPI4->DR;
+	}
 
+}
+
+void SPI_SwitchPhaseToListen(void)
+{
+	SPI4->CR1 &= ~(0x1 << 6);
+	SPI3->CR1 |= 1;
+	SPI4->CR1 |= 1;
+
+	SPI4->CR1 &= ~(1 << 14);
+	SPI4->CR1 |= (0x1 << 6);
+
+}
+
+void SPI_SwitchPhaseToWrite(void)
+{
+	SPI4->CR1 &= ~(0x1 << 6);
+	SPI3->CR1 &= ~1uL;
+	SPI4->CR1 &= ~1uL;
+
+	SPI4->CR1 |= (1uL << 14);
+	SPI4->CR1 |= (0x1 << 6);
 
 }
 

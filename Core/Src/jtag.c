@@ -10,7 +10,7 @@
 
 int SPI_Transfer(uint64_t *rdData, uint64_t wrData, uint8_t bitSize);
 
-void SPI_TMS_Transfer(uint32_t data, uint8_t bits );
+void SPI_TMS_Transfer(uint64_t data, uint8_t bits );
 
 
 // --- Low-Level GPIO Control Functions (STM32 HAL/LL equivalents) ---
@@ -61,8 +61,8 @@ void JTAG_Init(void) {
     JTAG_Reset();
 
     // Go to run-test/idle state
-    SPI_TMS_Transfer(0x001f, 16);
-    SPI_Transfer(&dummyInVal, 0, 16);
+    SPI_TMS_Transfer((uint64_t)0x001f, (uint8_t)16);
+    SPI_Transfer(&dummyInVal, 0, (uint8_t)16);
 }
 
 

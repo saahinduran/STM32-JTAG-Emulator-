@@ -232,7 +232,7 @@ uint32_t idCode = JTAG_ReadIDCODE();
 
 #endif
 
-#ifdef TRY_BLUE_PILL
+#ifdef TRY_BEAGLEBONE
 
 
   uint64_t data_in;
