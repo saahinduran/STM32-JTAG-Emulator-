@@ -79,8 +79,25 @@ void SWJ_Sequence (uint32_t count, const uint8_t *data) {
   	calculate_xfer_sizes(count, xFerSizes);
 
   	uint32_t currentBit = 0;
+  	SPI4->CR1 &= ~(1 << 6);
+
+  	SPI3->CR1 &= ~(1 << 6);
+
+  	SPI4->CR1 &= ~(1);
+  	SPI3->CR1 &= ~(1);
 
 
+  	SPI4->CR1 |= (1 << 14);
+
+  	SPI4->CR1 |= (1 << 6);
+  	SPI3->CR1 |= (1 << 6);
+
+  	uint32_t delay_cnt = 2500;
+
+  	  		while(delay_cnt--)
+  	  	    {
+  	  		  __asm("nop");
+  	  	    }
 
   	while(xFerSizes[IDX_8_BIT])
   	{

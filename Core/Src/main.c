@@ -621,7 +621,7 @@ void SPI_TMS_Transfer(uint64_t data, uint8_t bits)
 		b++;
 	}
 
-	while( ( (SPI4->SR >> 11) & 0x3 ) != 0) ;
+	//while( ( (SPI4->SR >> 11) & 0x3 ) != 0) ;
 
 
 	uint32_t dummyRead = SPI4->DR;

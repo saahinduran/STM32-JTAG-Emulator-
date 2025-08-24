@@ -399,6 +399,21 @@ uint32_t JTAG_Sequence (uint32_t count, const uint8_t *request, uint8_t *respons
 
   cnt++;
 
+  SPI4->CR1 &= ~(1 << 6);
+
+  SPI4->CR1 |= (1 << 6);
+
+  SPI4->CR1 &= ~(1);
+
+  SPI3->CR1 &= ~(1);
+
+  uint32_t delay_cnt = 2500;
+
+  		while(delay_cnt--)
+  	    {
+  		  __asm("nop");
+  	    }
+
 
   for(i = 0; i < count; i++)
   {

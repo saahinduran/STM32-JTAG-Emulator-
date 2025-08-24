@@ -45,7 +45,9 @@ void JTAG_Delay_ns(uint32_t nanoseconds) {
     // or a TIM (Timer) in one-shot mode. A simple NOP loop might be too slow or imprecise.
     // Example (very rough):
     //for (volatile uint32_t i = 0; i < (nanoseconds / 10); i++); // Adjust divisor based on CPU freq
-	HAL_Delay(nanoseconds);
+	//HAL_Delay(nanoseconds);
+	Delayms(nanoseconds);
+
 }
 
 

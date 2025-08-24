@@ -9,7 +9,7 @@
 ../Core/Src/main.c:550:6:Switch_GPIO	1
 ../Core/Src/main.c:564:20:WaitForComplete	2
 ../Core/Src/main.c:569:20:xFer	4
-../Core/Src/main.c:612:6:SPI_TMS_Transfer	4
+../Core/Src/main.c:612:6:SPI_TMS_Transfer	3
 ../Core/Src/main.c:641:6:SPI_TMSRead	2
 ../Core/Src/main.c:654:6:SPI_SwitchPhaseToListen	1
 ../Core/Src/main.c:665:6:SPI_SwitchPhaseToWrite	1

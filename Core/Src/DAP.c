@@ -240,6 +240,37 @@ static uint32_t DAP_HostStatus(const uint8_t *request, uint8_t *response) {
 //             number of bytes in request (upper 16 bits)
 static uint32_t DAP_Connect(const uint8_t *request, uint8_t *response) {
   uint32_t port;
+  uint8_t tms_buff[12] = {0};
+  int i;
+  for(i =0; i < 8; i++)
+  {
+	  tms_buff[i] = 0xff;
+  }
+
+  tms_buff[i++] = 0x3C;
+  tms_buff[i++] = 0xE7;
+  tms_buff[i++] = 0xff;
+  tms_buff[i++] = 0xff;
+
+  JTAG_Reset();
+
+  RCC->APB1ENR &= ~(1 << 15);
+
+  RCC->APB2ENR &= ~(1 << 13);
+
+
+  RCC->APB1ENR |= (1 << 15);
+
+  RCC->APB2ENR |= (1 << 13);
+
+  SPI4->CR1 |= (1 << 6);
+
+   SPI3->CR1 &= ~0x38;
+
+   SPI3->CR1 |= (0x7 << 3);
+
+   SPI4->CR1 |= (1 << 15);
+   SPI4->CR1 |= (1 << 14);
 
   if (*request == DAP_PORT_AUTODETECT) {
     port = DAP_DEFAULT_PORT;
@@ -251,13 +282,15 @@ static uint32_t DAP_Connect(const uint8_t *request, uint8_t *response) {
 #if (DAP_SWD != 0)
     case DAP_PORT_SWD:
       DAP_Data.debug_port = DAP_PORT_SWD;
-      PORT_SWD_SETUP();
+      //PORT_SWD_SETUP();
+
       break;
 #endif
 #if (DAP_JTAG != 0)
     case DAP_PORT_JTAG:
       DAP_Data.debug_port = DAP_PORT_JTAG;
-      PORT_JTAG_SETUP();
+      //PORT_JTAG_SETUP();
+      SWJ_Sequence (96, tms_buff);
       break;
 #endif
     default:
@@ -267,6 +300,16 @@ static uint32_t DAP_Connect(const uint8_t *request, uint8_t *response) {
 
   *response = (uint8_t)port;
   return ((1U << 16) | 1U);
+
+  SPI4->CR1 &= ~(1 << 6);
+  SPI4->DR = 0xFFFF;
+  SPI4->DR = 0xFFFF;
+  SPI4->CR1 |= (1 << 6);
+
+  SPI3->DR = 0x0;
+  SPI3->DR = 0x0;
+
+
 }
 
 

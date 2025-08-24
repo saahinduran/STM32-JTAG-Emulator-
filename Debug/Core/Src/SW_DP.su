@@ -16,9 +16,9 @@
 ../Core/Inc/DAP_config.h:465:17:PIN_nRESET_IN	8	static
 ../Core/Inc/DAP_config.h:476:17:PIN_nRESET_OUT	16	static
 ../Core/Inc/DAP_config.h:559:26:TIMESTAMP_GET	4	static
-../Core/Src/SW_DP.c:72:6:SWJ_Sequence	96	static,ignoring_inline_asm
-../Core/Src/SW_DP.c:158:6:SWD_Sequence	56	static,ignoring_inline_asm
-../Core/Src/SW_DP.c:201:9:generate_even_parity	24	static
-../Core/Src/SW_DP.c:217:9:check_even_parity	24	static
-../Core/Src/SW_DP.c:237:9:SWD_Transfer_LL	96	static,ignoring_inline_asm
-../Core/Src/SW_DP.c:502:10:SWD_Transfer	16	static
+../Core/Src/SW_DP.c:72:6:SWJ_Sequence	104	static,ignoring_inline_asm
+../Core/Src/SW_DP.c:175:6:SWD_Sequence	56	static,ignoring_inline_asm
+../Core/Src/SW_DP.c:218:9:generate_even_parity	24	static
+../Core/Src/SW_DP.c:234:9:check_even_parity	24	static
+../Core/Src/SW_DP.c:254:9:SWD_Transfer_LL	96	static,ignoring_inline_asm
+../Core/Src/SW_DP.c:519:10:SWD_Transfer	16	static
