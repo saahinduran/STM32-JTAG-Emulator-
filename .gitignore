@@ -1,0 +1,39 @@
+# Object files
+*.o
+
+# Dependency files
+*.d
+
+# Executables
+*.elf
+*.exe
+*.out
+*.app
+
+# Binary images
+*.bin
+*.hex
+*.map
+*.srec
+*.su
+*.cyclo
+
+# Libraries
+*.a
+*.lib
+
+# Assembly listings
+*.lst
+*.lss
+
+# Debug files
+*.sym
+*.dbg
+
+# Core dumps
+core
+
+# IDE / build system specific (optional, uncomment as needed)
+# build/
+# Debug/
+# Release/
