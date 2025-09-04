@@ -23,11 +23,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-int SPI_Transfer(uint64_t *rdData, uint64_t wrData, uint8_t bitSize);
-#include "jtag.h"
-#include "arm.h"
 #include "DAP.h"
 #include "usbd_customhid.h"
+#include "helper.h"
+#include "port.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -93,19 +92,10 @@ static void MX_SPI1_Init(void);
 static void MX_SPI4_Init(void);
 /* USER CODE BEGIN PFP */
 
-void Switch_SPI(void);
-void SPI_TMS_Transfer(uint64_t data, uint8_t bits);
-int SPI_Transfer(uint64_t *rdData, uint64_t wrData, uint8_t bitSize);
-void SPI_TMSRead(uint64_t *ptr, uint8_t bits);
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-#define READ 1
-#define WRITE 0
-#define DUMMY_WRITE_VAL 0x1
-
 
 /* USER CODE END 0 */
 
@@ -120,11 +110,18 @@ int main(void)
 
   /* USER CODE END 1 */
 
+  /* Enable the CPU Cache */
+
+  /* Enable I-Cache---------------------------------------------------------*/
+  SCB_EnableICache();
+
+  /* Enable D-Cache---------------------------------------------------------*/
+  SCB_EnableDCache();
+
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-
-	HAL_Init();
+  HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -144,28 +141,19 @@ int main(void)
   MX_SPI1_Init();
   MX_SPI4_Init();
   MX_USB_DEVICE_Init();
-
   /* USER CODE BEGIN 2 */
 
-  RCC->APB1ENR |= (1 << 15);
+  HardResetSPI();
 
   Switch_SPI();
-  SPI4->CR1 |= (1 << 6);
 
-  SPI3->CR1 &= ~0x38;
-
-  SPI3->CR1 |= (0x7 << 3);
-
-  SPI4->CR1 |= (1 << 15);
-  SPI4->CR1 |= (1 << 14);
-
-  //JTAG_Init();
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  //__enable_irq();
+
+  /* enable cycle counter, some cmsis dap commands may require timestamps */
   DWT->LAR = 0xC5ACCE55;
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
   DWT->CYCCNT = 0;
@@ -176,30 +164,26 @@ int main(void)
 
 	  uint32_t num;
 
+	  /* msgAvailable variable is set form interrupt context. i.e.,
+	   * USBD_CUSTOM_HID_ReceivePacket function */
 	  if(msgAvailable)
 	  {
 		  uint32_t readLen, writeLen;
-		  //HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+
 		  __disable_irq();
 		  num = DAP_ProcessCommand(rdBuff, wrBuff);
-		  __enable_irq();
-		  readLen = (num & 0xFFFF0000) >> 16;
-		  wrIdx += readLen;
 
+		  readLen = (num & 0xFFFF0000) >> 16;
+
+		  wrIdx += readLen;
 		  writeLen = (num & 0xFFFF);
-		  //writeLen = 0x40;
 
 		  USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS,
 		  			  wrBuff, writeLen);
 
 		  msgAvailable = 0;
+		  __enable_irq();
 	  }
-
-
-	  //DAP_ExecuteCommand(rdBuff, wrBuff);
-
-	  //HAL_Delay(10);
-
 
     /* USER CODE END WHILE */
 
@@ -528,165 +512,6 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-uint32_t pupdr, afr, moder;
-void Switch_SPI(void)
-{
-	pupdr = GPIOC->PUPDR;
-	afr = GPIOC->AFR[1];
-	moder = GPIOC->MODER;
-
-	GPIOC->PUPDR = (0x1 << 16);
-	GPIOC->AFR[1] = (0x6 << 8) | (0x6 << 12) | (0x6 << 16);
-
-	GPIOC->MODER = (1 << 16) | (0x1 << 18) | (0x2 << 20) | (0x2 << 22 )| (0x2 << 24);
-
-	SPI3->CR1 = (0x1 << 8) | (0x1 << 9) |
-			(1 << 2) | (0x7 << 3) | (0x1 << 7) |
-			(0x1 << 6);
-
-
-}
-
-void Switch_GPIO(void)
-{
-	GPIOC->PUPDR = pupdr;
-	GPIOC->AFR[1] = afr;
-
-	GPIOC->MODER = moder;
-
-}
-
-static inline void WaitForStart(void)
-{
-	while( !(SPI3->SR & (0x1 << 7) ) );
-}
-
-static inline void WaitForComplete(void)
-{
-	while( (SPI3->SR & (0x1 << 7) ) );
-}
-
-static inline void xFer(uint32_t *rdData, uint32_t wrData, uint8_t bitSize)
-{
-
-	WaitForComplete();
-	uint8_t dummyStop = 1;
-
-
-
-	SPI3->CR2 = ( (bitSize -1) << 8);
-
-
-	if(bitSize == 8)
-	{
-		dummyStop = 0;
-	}
-
-	if(bitSize <= 8)
-	{
-		*(uint8_t *)&SPI3->DR = wrData;
-	}
-	else
-	{
-		SPI3->DR = wrData;
-	}
-
-
-
-
-	WaitForComplete();
-
-	if(bitSize <= 8)
-	{
-		*rdData = *(uint8_t *)&SPI3->DR;
-	}
-	else
-	{
-		*rdData = *(uint16_t *)&SPI3->DR;
-	}
-
-
-}
-
-
-void SPI_TMS_Transfer(uint64_t data, uint8_t bits)
-{
-
-	int a = 0, b = 0;
-
-	SPI4->CR2 = ( (bits -1) << 8);
-
-	while( (SPI4->SR & (0x1 << 7) ) )
-	{
-		b++;
-	}
-
-	//while( ( (SPI4->SR >> 11) & 0x3 ) != 0) ;
-
-
-	uint32_t dummyRead = SPI4->DR;
-
-
-	if(bits <= 8)
-	{
-		*(uint8_t *)&SPI4->DR = data;
-	}
-	else
-	{
-		*(uint16_t *)&SPI4->DR = data;
-	}
-
-}
-
-void SPI_TMSRead(uint64_t *ptr, uint8_t bits)
-{
-	if(bits <= 8)
-	{
-		*ptr = *(uint8_t *)&SPI4->DR;
-	}
-	else
-	{
-		*ptr = *(uint16_t *)&SPI4->DR;
-	}
-
-}
-
-void SPI_SwitchPhaseToListen(void)
-{
-	SPI4->CR1 &= ~(0x1 << 6);
-	SPI3->CR1 |= 1;
-	SPI4->CR1 |= 1;
-
-	SPI4->CR1 &= ~(1 << 14);
-	SPI4->CR1 |= (0x1 << 6);
-
-}
-
-void SPI_SwitchPhaseToWrite(void)
-{
-	SPI4->CR1 &= ~(0x1 << 6);
-	SPI3->CR1 &= ~1uL;
-	SPI4->CR1 &= ~1uL;
-
-	SPI4->CR1 |= (1uL << 14);
-	SPI4->CR1 |= (0x1 << 6);
-
-}
-
-int SPI_Transfer(uint64_t *rdData, uint64_t wrData, uint8_t bitSize)
-{
-	int retVal = -1;
-	int i = 0;
-
-
-	int halfWordIterationCnt = (bitSize / 16) -1;
-	uint32_t tempReadVal, tempWriteVal;
-
-	*rdData = 0;
-	xFer(&tempReadVal, wrData, bitSize);
-	*rdData = tempReadVal;
-
-}
 /* USER CODE END 4 */
 
 /**

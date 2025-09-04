@@ -8,23 +8,7 @@
 #ifndef INC_JTAG_H_
 #define INC_JTAG_H_
 
-#define JTAG_TCK_PORT    GPIOC
-#define JTAG_TCK_PIN     GPIO_PIN_10 // Example: PA5
 
-#define JTAG_TMS_PORT    GPIOC
-#define JTAG_TMS_PIN     GPIO_PIN_9 // Example: PA6
-
-#define JTAG_TDI_PORT    GPIOC
-#define JTAG_TDI_PIN     GPIO_PIN_12 // Example: PA7
-
-#define JTAG_TDO_PORT    GPIOC
-#define JTAG_TDO_PIN     GPIO_PIN_11 // Example: PB0
-
-#define JTAG_TRST_PORT   GPIOC      // Optional
-#define JTAG_TRST_PIN    GPIO_PIN_8 // Optional
-
-#define JTAG_SRST_PORT	 GPIOD
-#define JTAG_SRST_PIN    GPIO_PIN_2 // Optional
 
 // --- JTAG State Machine Constants (for TMS manipulation) ---
 // These are standard JTAG state transitions controlled by TMS
@@ -38,7 +22,7 @@
 
 #include "main.h"
 #include <stdint.h>
-#include "arm.h"
+
 #include "jtag.h"
 
 // --- Low-Level GPIO Control Functions (STM32 HAL/LL equivalents) ---

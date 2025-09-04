@@ -30,8 +30,6 @@
 *.sym
 *.dbg
 
-# Core dumps
-core
 
 # IDE / build system specific (optional, uncomment as needed)
 # build/
