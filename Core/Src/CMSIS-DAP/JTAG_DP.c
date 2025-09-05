@@ -140,9 +140,6 @@ uint32_t JTAG_Sequence (uint32_t count, const uint8_t *request, uint8_t *respons
 
   memset(TDO_SEQ_ARR, 0, 256);
 
-  memset(TDO_PROCESSED_SEQ_ARR, 0, 256);
-
-
 
   for(i = 0; i < count; i++)
   {
@@ -184,6 +181,7 @@ uint32_t JTAG_Sequence (uint32_t count, const uint8_t *request, uint8_t *respons
 
   total_read_bit_cnt = 0;
 
+
   for(i = 0; i < count; i++)
   {
 	  uint32_t n;
@@ -202,7 +200,7 @@ uint32_t JTAG_Sequence (uint32_t count, const uint8_t *request, uint8_t *respons
 	  if(*req_base & JTAG_SEQUENCE_TDO)
 	  {
 
-		  copy_bits_lsb(TDO_SEQ_ARR, total_write_bit_cnt, n, TDO_PROCESSED_SEQ_ARR, total_read_bit_cnt);
+		  copy_bits_lsb(TDO_SEQ_ARR, total_write_bit_cnt, n, response, total_read_bit_cnt);
 		  total_read_bit_cnt += n;
 
 		  if(total_read_bit_cnt % 8 )
@@ -220,8 +218,6 @@ uint32_t JTAG_Sequence (uint32_t count, const uint8_t *request, uint8_t *respons
 
     }
 
-
-  memcpy(response, TDO_PROCESSED_SEQ_ARR, total_read_bit_cnt /8);
 
   return total_read_bit_cnt / 8;
 
