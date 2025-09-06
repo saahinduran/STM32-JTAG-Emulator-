@@ -117,7 +117,7 @@ void fill_tdi_buffer(uint32_t total_write_bit_cnt, uint32_t n, uint8_t *tdi_val_
 	}
 }
 
-void calculate_xfer_sizes(uint16_t input_len, uint8_t *buff)
+void inline calculate_xfer_sizes(uint16_t input_len, uint8_t *buff)
 {
 	/* divide the transfer into chunks, we don't want the remainder clock cycle to be less
 	 * than 4 since SPI peripheral does not support less than 4 clock cycle transfer.
@@ -128,7 +128,15 @@ void calculate_xfer_sizes(uint16_t input_len, uint8_t *buff)
 
 	if(isunAligned && isGreaterThan8)
 	{
-		buff[IDX_8_BIT] = input_len / 8 -2;
+		if( (input_len / 8 -2) > 0)
+		{
+			buff[IDX_8_BIT] = input_len / 8 -2;
+		}
+		else
+		{
+			buff[IDX_8_BIT] = 0;
+		}
+
 		buff[IDX_RM1_BIT] = 4;
 		buff[IDX_RM2_BIT] = input_len - buff[IDX_8_BIT]*8 - buff[IDX_RM1_BIT];
 	}

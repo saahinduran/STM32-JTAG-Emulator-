@@ -52,6 +52,7 @@ This information includes:
 #endif
 
 #include "main.h"
+#include "port.h"
 
 
 
@@ -450,8 +451,17 @@ static uint32_t PIN_nTRST_IN   (void) {
            - 0: issue a JTAG TRST Test Reset.
            - 1: release JTAG TRST Test Reset.
 */
-static void     PIN_nTRST_OUT  (uint32_t bit) {
-  ;
+static void     PIN_nTRST_OUT  (uint32_t bit)
+{
+	if(bit)
+	{
+		HAL_GPIO_WritePin(JTAG_TRST_PORT, JTAG_TRST_PIN, GPIO_PIN_SET );
+	}
+
+	else
+	{
+		HAL_GPIO_WritePin(JTAG_TRST_PORT, JTAG_TRST_PIN, GPIO_PIN_RESET);
+	}
 }
 
 // nRESET Pin I/O------------------------------------------
@@ -476,12 +486,12 @@ static uint32_t PIN_nRESET_IN  (void) {
 static void     PIN_nRESET_OUT (uint32_t bit) {
 	if(bit)
 	{
-		HAL_GPIO_WritePin(JTAG_SRST_PORT, JTAG_SRST_PIN, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(JTAG_SRST_PORT, JTAG_SRST_PIN, GPIO_PIN_SET);
 	}
 
 	else
 	{
-		HAL_GPIO_WritePin(JTAG_SRST_PORT, JTAG_SRST_PIN, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(JTAG_SRST_PORT, JTAG_SRST_PIN, GPIO_PIN_RESET );
 	}
 
 }

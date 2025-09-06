@@ -40,7 +40,7 @@ extern uint8_t TDO_PROCESSED_SEQ_ARR[];
 
 
 /* This function executes the jtag transfer that is stated by TDI and TMS sequences */
-static void apply_jtag_xfer(const uint8_t *tdi, const uint8_t *tms, uint8_t *tdo, uint32_t cnt)
+static inline void apply_jtag_xfer(const uint8_t *tdi, const uint8_t *tms, uint8_t *tdo, uint32_t cnt)
 {
 	uint8_t xFerSizes[3];
 	/* divide the transfer into chunks, we don't want the remainder clock cycle to be less
@@ -53,6 +53,8 @@ static void apply_jtag_xfer(const uint8_t *tdi, const uint8_t *tms, uint8_t *tdo
 	uint8_t *tms_seq_arr = tms;
 
 	uint8_t *tdi_seq_arr = tdi;
+
+	uint8_t *tdo_seq_arr = tdo;
 
 
 	while(xFerSizes[IDX_8_BIT])
@@ -86,7 +88,7 @@ static void apply_jtag_xfer(const uint8_t *tdi, const uint8_t *tms, uint8_t *tdo
 		SPI_TMS_Transfer(tms_val, xFerSizes[IDX_RM1_BIT]);
 		SPI_Transfer(&tdo_val, tdi_val , xFerSizes[IDX_RM1_BIT]);
 
-		write_nbits_lsb(TDO_SEQ_ARR, currentBit, xFerSizes[IDX_RM1_BIT], tdo_val);
+		write_nbits_lsb(tdo_seq_arr, currentBit, xFerSizes[IDX_RM1_BIT], tdo_val);
 
 		currentBit+= xFerSizes[IDX_RM1_BIT];
 
@@ -104,7 +106,7 @@ static void apply_jtag_xfer(const uint8_t *tdi, const uint8_t *tms, uint8_t *tdo
 		SPI_TMS_Transfer(tms_val, xFerSizes[IDX_RM2_BIT]);
 		SPI_Transfer(&tdo_val, tdi_val , xFerSizes[IDX_RM2_BIT]);
 
-		write_nbits_lsb(TDO_SEQ_ARR, currentBit, xFerSizes[IDX_RM2_BIT], tdo_val);
+		write_nbits_lsb(tdo_seq_arr, currentBit, xFerSizes[IDX_RM2_BIT], tdo_val);
 
 		currentBit+= xFerSizes[IDX_RM2_BIT];
 
@@ -218,7 +220,6 @@ uint32_t JTAG_Sequence (uint32_t count, const uint8_t *request, uint8_t *respons
 
     }
 
-
   return total_read_bit_cnt / 8;
 
 }
@@ -230,7 +231,41 @@ uint32_t JTAG_Sequence (uint32_t count, const uint8_t *request, uint8_t *respons
 uint32_t JTAG_ReadIDCode (void)
 {
 
-  return (0);
+	uint32_t n;
+	uint32_t total_bit_cnt = 0;
+	uint8_t tms_buff[8] = {0};
+	uint8_t tdi_buff[2] = {0};
+	uint8_t tdo_buff[8] = {0};
+
+	/* Move the TAP controller to SHIFT-DR state */
+	write_nbits_lsb(tms_buff, 0, 4, 0x2);
+	total_bit_cnt += 4;
+
+	/* Bypass before data */
+	n = DAP_Data.jtag_dev.index;
+
+	while(n > 8)
+	{
+		write_nbits_lsb(tdi_buff, total_bit_cnt, 0xff, 8);
+		total_bit_cnt +=8;
+		n -= 8;
+	}
+
+	total_bit_cnt += n;
+
+	apply_jtag_xfer(tdi_buff, tms_buff, tdo_buff, total_bit_cnt);
+
+	/* We are ready to shift IDCODE in */
+	total_bit_cnt = 32;
+
+	memset(tms_buff, 0, total_bit_cnt / 8 +1);
+
+	write_nbits_lsb(tms_buff, total_bit_cnt -1, 8, 0x03);
+	total_bit_cnt += 8;
+
+	apply_jtag_xfer(tdi_buff, tms_buff, tdo_buff, total_bit_cnt);
+
+	return (uint32_t )(tdo_buff[3] << 24) | (tdo_buff[2] << 16) | (tdo_buff[1] << 8) | (tdo_buff[0]) ;
 }
 
 
@@ -239,7 +274,53 @@ uint32_t JTAG_ReadIDCode (void)
 //   return: none
 void JTAG_WriteAbort (uint32_t data)
 {
-	/*TODO: implement this function */
+	uint32_t n;
+
+	uint32_t total_bit_cnt = 0;
+	uint8_t tms_buff[64] = {0};
+	uint8_t tdi_buff[64] = {0};
+	uint8_t tdo_buff[64] = {0};
+
+
+	write_nbits_lsb(tms_buff, 0, 5, 0x04);
+	total_bit_cnt += 5;
+
+	//TODO: There might be more than 8 devices on the chain!!! (Very odd.)
+	n = DAP_Data.jtag_dev.index;
+
+	/* BYPASS BEFORE DEVICE, TARGET DEVICE, DEVICE AT TDO HAS INDEX 0 */
+	total_bit_cnt += n;
+	write_nbits_lsb(tdi_buff, total_bit_cnt, 3, 0x0);
+
+	/* APPLY JTAG TRANSFER */
+	total_bit_cnt += 3;
+	apply_jtag_xfer(tdi_buff, tms_buff, tdo_buff, total_bit_cnt);
+
+
+	/* Write Transfer */
+	total_bit_cnt = 32;
+	n = DAP_Data.jtag_dev.count - DAP_Data.jtag_dev.index - 1U;
+
+	if( (int)n > 0)
+		total_bit_cnt += n;
+
+
+	memset(tms_buff, 0x0, total_bit_cnt /8 +1);
+
+	tdi_buff[0] = (data & 0xFF);
+	tdi_buff[1] = (data & 0xFF00) >> 8;
+	tdi_buff[2] = (data & 0xFF0000) >> 16;
+	tdi_buff[3] = (data & 0xFF000000) >> 24;
+
+	write_nbits_lsb(tms_buff, total_bit_cnt -1 , 0x4, 0x3);
+	total_bit_cnt += 4;
+
+	/* Insert Idle cycles */
+	n = DAP_Data.transfer.idle_cycles;
+	total_bit_cnt += n;
+
+	apply_jtag_xfer(tdi_buff, tms_buff, tdo_buff, total_bit_cnt);
+
 }
 
 
@@ -248,7 +329,73 @@ void JTAG_WriteAbort (uint32_t data)
 //   return: none
 void JTAG_IR (uint32_t ir)
 {
-/*TODO: implement this function */
+	uint32_t total_bit_cnt = 0;
+	uint32_t n;
+	uint8_t tms_buff[64] = {0};
+	uint8_t tdi_buff[64] = {0};
+	uint8_t tdo_buff[64];
+
+	write_nbits_lsb(tms_buff, 0, 4, 0x3);
+
+	total_bit_cnt += 4;
+
+	n = DAP_Data.jtag_dev.ir_before[DAP_Data.jtag_dev.index];
+
+
+	while(n > 8)
+
+	{
+		write_nbits_lsb(tdi_buff, total_bit_cnt, 8, 0xff);
+		total_bit_cnt +=8;
+		n -= 8;
+	}
+
+	write_nbits_lsb(tdi_buff, total_bit_cnt, n, 0xff);
+
+	total_bit_cnt +=n;
+
+	n = DAP_Data.jtag_dev.ir_length[DAP_Data.jtag_dev.index];
+
+
+	while(n > 8)
+
+	{
+		write_nbits_lsb(tdi_buff, total_bit_cnt, 8, ir);
+		ir >>= 8;
+		total_bit_cnt +=8;
+		n -= 8;
+	}
+
+	write_nbits_lsb(tdi_buff, total_bit_cnt, n, ir);
+
+
+	total_bit_cnt += n;
+
+	n = DAP_Data.jtag_dev.ir_after[DAP_Data.jtag_dev.index];
+
+	if (n)
+	{
+		while(n > 8)
+		{
+			write_nbits_lsb(tdi_buff, total_bit_cnt, 8, 0xff);
+
+			total_bit_cnt +=8;
+			n -= 8;
+		}
+
+		write_nbits_lsb(tdi_buff, total_bit_cnt, n, 0xff);
+		total_bit_cnt += n;
+
+	}
+
+
+	/* add return path to IDLE state */
+	write_nbits_lsb(tms_buff, total_bit_cnt-1, 4, 0x3);
+	total_bit_cnt += 4;
+
+	apply_jtag_xfer(tdi_buff, tms_buff, tdo_buff, total_bit_cnt);
+
+
 }
 
 
@@ -258,8 +405,114 @@ void JTAG_IR (uint32_t ir)
 //   return:  ACK[2:0]
 uint8_t  JTAG_Transfer(uint32_t request, uint32_t *data)
 {
-	/*TODO: implement this function */
-	return (0);
+	uint8_t ack = 0;
+	uint32_t n;
+
+	uint32_t total_bit_cnt = 0;
+	uint8_t tms_buff[64] = {0};
+	uint8_t tdi_buff[64] = {0};
+	uint8_t tdo_buff[64] = {0};
+
+	write_nbits_lsb(tms_buff, 0, 5, 0x04);
+	total_bit_cnt += 5;
+
+	//TODO: There might be more than 8 devices on the chain!!! (Very odd.)
+	n = DAP_Data.jtag_dev.index;
+
+	/* BYPASS BEFORE DEVICE, TARGET DEVICE, DEVICE AT TDO HAS INDEX 0 */
+	total_bit_cnt += n;
+
+	write_nbits_lsb(tdi_buff, total_bit_cnt, 3, request >> 1);
+
+	/* APPLY JTAG TRANSFER */
+	total_bit_cnt += 3;
+	apply_jtag_xfer(tdi_buff, tms_buff, tdo_buff, total_bit_cnt);
+
+
+	copy_bits_lsb(tdo_buff, total_bit_cnt -3,
+	                     3,
+	                     &ack , 0);
+
+
+	  if (ack != 0x2)
+	  {
+		  /* Exit on error */
+		  total_bit_cnt = 8;
+		  write_nbits_lsb(tms_buff, total_bit_cnt, 0x8, 0x3);
+		  apply_jtag_xfer(tdi_buff, tms_buff, tdo_buff, total_bit_cnt);
+	  }
+	  else if (ack == 0x2 && (request & DAP_TRANSFER_RnW) )
+	  {
+		  /* Read Transfer */
+		  total_bit_cnt = 32;
+		  n = DAP_Data.jtag_dev.count - DAP_Data.jtag_dev.index - 1U;
+		  if( (int)n > 0)
+			  total_bit_cnt += n;
+
+		  memset(tms_buff, 0x0, total_bit_cnt /8 +1);
+
+		  write_nbits_lsb(tms_buff, total_bit_cnt -1 , 0x4, 0x3);
+
+		  total_bit_cnt += 4;
+
+		  /* Insert Idle cycles */
+		  n = DAP_Data.transfer.idle_cycles;
+		  total_bit_cnt += n;
+
+		  apply_jtag_xfer(tdi_buff, tms_buff, tdo_buff, total_bit_cnt);
+
+		  *data = 0;
+		  *data |= (tdo_buff[3] << 24) | (tdo_buff[2] << 16) | (tdo_buff[1] << 8) | (tdo_buff[0]) ;
+
+
+	  }
+	  else if(ack == 0x2 && !(request & DAP_TRANSFER_RnW) )
+	  {
+		  /* Write Transfer */
+		  uint32_t xFerData = *data;
+
+		  total_bit_cnt = 32;
+		  n = DAP_Data.jtag_dev.count - DAP_Data.jtag_dev.index - 1U;
+		  if( (int)n > 0)
+			  total_bit_cnt += n;
+
+		  memset(tms_buff, 0x0, total_bit_cnt /8 +1);
+
+		  tdi_buff[0] = (xFerData & 0xFF);
+		  tdi_buff[1] = (xFerData & 0xFF00) >> 8;
+		  tdi_buff[2] = (xFerData & 0xFF0000) >> 16;
+		  tdi_buff[3] = (xFerData & 0xFF000000) >> 24;
+
+		  write_nbits_lsb(tms_buff, total_bit_cnt -1 , 0x4, 0x3);
+
+		  total_bit_cnt += 4;
+
+		  /* Insert Idle cycles */
+		  n = DAP_Data.transfer.idle_cycles;
+		  total_bit_cnt += n;
+
+
+		  apply_jtag_xfer(tdi_buff, tms_buff, tdo_buff, total_bit_cnt);
+
+	  }
+
+	  /* Capture Timestamp */
+	  if (request & DAP_TRANSFER_TIMESTAMP) {
+	    DAP_Data.timestamp = TIMESTAMP_GET();
+	  }
+
+
+	  /* JTAG ACK and SW-DP ACK bit indexes are not the same!! */
+	  if(0x02 == ack)
+	  {
+		  ack = DAP_TRANSFER_OK;
+	  }
+	  else if(0x1 == ack)
+	  {
+		  ack = DAP_TRANSFER_WAIT;
+	  }
+
+	  return ((uint8_t)ack);
 }
 
 

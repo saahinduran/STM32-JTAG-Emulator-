@@ -32,6 +32,6 @@
 
 
 # IDE / build system specific (optional, uncomment as needed)
-# build/
-# Debug/
-# Release/
+ build/
+ Debug/
+ Release/
