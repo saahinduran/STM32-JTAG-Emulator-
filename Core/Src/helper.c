@@ -9,24 +9,56 @@ extern uint8_t TDO_SEQ_ARR[];
 extern uint8_t TDO_PROCESSED_SEQ_ARR[];
 
 
-void copy_bits_lsb(const uint8_t *src, uint32_t srcBitIndex,
+void copy_bits_lsb(const uint8_t * __restrict src,
+                   uint32_t srcBitIndex,
                    uint32_t bitLen,
-                   uint8_t *dst, uint32_t dstBitIndex)
+                   uint8_t * __restrict dst,
+                   uint32_t dstBitIndex)
 {
-    for (uint32_t i = 0; i < bitLen; i++)
-    {
-        // Locate the bit in the source
-        uint32_t sByte = (srcBitIndex + i) / 8;
-        uint32_t sBit  = (srcBitIndex + i) % 8; // LSB-first
-        uint8_t  bit   = (src[sByte] >> sBit) & 1;
+    uint32_t srcByte = srcBitIndex >> 3;
+    uint32_t dstByte = dstBitIndex >> 3;
+    uint32_t srcOff  = srcBitIndex & 7u;
+    uint32_t dstOff  = dstBitIndex & 7u;
 
-        // Locate where to put it in the destination
-        uint32_t dByte = (dstBitIndex + i) / 8;
-        uint32_t dBit  = (dstBitIndex + i) % 8; // LSB-first
+    // Case 1: fully aligned → straight memcpy
+    if (srcOff == 0 && dstOff == 0) {
+        uint32_t nbytes = bitLen >> 3;
+        if (nbytes) {
+            memcpy(dst + dstByte, src + srcByte, nbytes);
+        }
+        bitLen &= 7u; // leftover
+        srcBitIndex += (nbytes << 3);
+        dstBitIndex += (nbytes << 3);
+        srcByte = srcBitIndex >> 3;
+        dstByte = dstBitIndex >> 3;
+        srcOff  = srcBitIndex & 7u;
+        dstOff  = dstBitIndex & 7u;
+    }
 
-        // Clear and set the destination bit
-        dst[dByte] &= ~(1U << dBit);
-        dst[dByte] |=  (bit << dBit);
+    // General case: use shift + mask trick
+    while (bitLen > 0) {
+        uint32_t nbits = bitLen > 8 ? 8 : bitLen;
+
+        // Extract up to 8 bits starting at srcOff
+        uint16_t chunk = src[srcByte] >> srcOff;
+        if (srcOff + nbits > 8) {
+            // spill into next byte
+            chunk |= ((uint16_t)src[srcByte + 1]) << (8 - srcOff);
+        }
+
+        // Place into destination
+        uint8_t mask = ((1u << nbits) - 1u) << dstOff;
+        dst[dstByte] = (dst[dstByte] & ~mask) | ((chunk << dstOff) & mask);
+
+        // Advance indices
+        srcBitIndex += nbits;
+        dstBitIndex += nbits;
+        bitLen      -= nbits;
+
+        srcByte = srcBitIndex >> 3;
+        dstByte = dstBitIndex >> 3;
+        srcOff  = srcBitIndex & 7u;
+        dstOff  = dstBitIndex & 7u;
     }
 }
 
@@ -34,7 +66,7 @@ void copy_bits_lsb(const uint8_t *src, uint32_t srcBitIndex,
 // Extracts 8 bits from a uint8_t array (LSB-first), starting at `bit_index`
 // Returns the extracted bits right-aligned
 // Extract up to 16 bits from a bitstream (LSB-first)
-uint16_t extract_nbits_lsb(const uint8_t *buf, size_t bit_offset, size_t n) {
+inline uint16_t extract_nbits_lsb(const uint8_t *buf, size_t bit_offset, size_t n) {
     if (n == 0 || n > 16) return 0;
 
     size_t byte_offset = bit_offset / 8;
@@ -49,7 +81,7 @@ uint16_t extract_nbits_lsb(const uint8_t *buf, size_t bit_offset, size_t n) {
     return (temp >> bit_in_byte) & ((1U << n) - 1);
 }
 
-void write_nbits_lsb(uint8_t *buf, size_t bit_offset, size_t n, uint16_t value) {
+inline void write_nbits_lsb(uint8_t *buf, size_t bit_offset, size_t n, uint16_t value) {
     if (n == 0 || n > 16) return;
 
     size_t byte_offset = bit_offset / 8;
@@ -71,19 +103,18 @@ void write_nbits_lsb(uint8_t *buf, size_t bit_offset, size_t n, uint16_t value) 
 }
 
 
-void fill_tms_buffer(uint32_t total_write_bit_cnt, uint32_t n, uint8_t tms_val)
+inline void fill_tms_buffer(uint32_t total_write_bit_cnt, uint32_t n, uint8_t tms_val)
 {
 	//TODO: optimize here!!
 	while(n)
 	{
 		if(n > 8)
 		{
-			if(tms_val)
-			{
-				tms_val = 0xFF;
-				write_nbits_lsb(TMS_SEQ_ARR, total_write_bit_cnt, 8, tms_val);
-				total_write_bit_cnt += 8;
-			}
+
+			tms_val = 0xFF;
+			write_nbits_lsb(TMS_SEQ_ARR, total_write_bit_cnt, 8, tms_val);
+			total_write_bit_cnt += 8;
+
 
 			n -= 8;
 		}
@@ -96,28 +127,25 @@ void fill_tms_buffer(uint32_t total_write_bit_cnt, uint32_t n, uint8_t tms_val)
 	}
 }
 
-void fill_tdi_buffer(uint32_t total_write_bit_cnt, uint32_t n, uint8_t *tdi_val_ptr)
+void fill_tdi_buffer(uint32_t bitOffset,
+                                   uint32_t n,
+                                   const uint8_t *tdi_val_ptr)
 {
-	//TODO: optimize here!!
-	while(n)
-	{
-		if(n > 8)
-		{
-			write_nbits_lsb(TDI_SEQ_ARR, total_write_bit_cnt, 8, *tdi_val_ptr);
-			n -= 8;
-			tdi_val_ptr++;
-			total_write_bit_cnt += 8;
-		}
-		else
-		{
-			write_nbits_lsb(TDI_SEQ_ARR, total_write_bit_cnt, n, *tdi_val_ptr);
-			break;
-		}
+    // Process full bytes (8 bits at a time)
+    while (n >= 8) {
+        write_nbits_lsb(TDI_SEQ_ARR, bitOffset, 8, *tdi_val_ptr);
+        bitOffset    += 8;
+        tdi_val_ptr++;
+        n            -= 8;
+    }
 
-	}
+    // Handle leftover < 8 bits
+    if (n > 0) {
+        write_nbits_lsb(TDI_SEQ_ARR, bitOffset, n, *tdi_val_ptr);
+    }
 }
 
-void inline calculate_xfer_sizes(uint16_t input_len, uint8_t *buff)
+inline void inline calculate_xfer_sizes(uint16_t input_len, uint8_t *buff)
 {
 	/* divide the transfer into chunks, we don't want the remainder clock cycle to be less
 	 * than 4 since SPI peripheral does not support less than 4 clock cycle transfer.

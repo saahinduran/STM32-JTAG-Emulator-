@@ -16,16 +16,20 @@
 
 
 
-void copy_bits_lsb(const uint8_t *src, uint32_t srcBitIndex,
-                   uint32_t bitLen,
-                   uint8_t *dst, uint32_t dstBitIndex);
+void copy_bits_lsb(const uint8_t * __restrict src,
+                                 uint32_t srcBitIndex,
+                                 uint32_t bitLen,
+                                 uint8_t * __restrict dst,
+                                 uint32_t dstBitIndex);
 
 
 void write_nbits_lsb(uint8_t *buf, size_t bit_offset, size_t n, uint16_t value);
 
 uint16_t extract_nbits_lsb(const uint8_t *buf, size_t bit_offset, size_t n);
 
-void fill_tdi_buffer(uint32_t total_write_bit_cnt, uint32_t n, uint8_t *tdi_val_ptr);
+void fill_tdi_buffer(uint32_t bitOffset,
+                                   uint32_t n,
+                                   const uint8_t *tdi_val_ptr);
 
 void fill_tms_buffer(uint32_t total_write_bit_cnt, uint32_t n, uint8_t tms_val);
 

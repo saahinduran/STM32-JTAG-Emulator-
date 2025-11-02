@@ -120,108 +120,96 @@ static inline void apply_jtag_xfer(const uint8_t *tdi, const uint8_t *tms, uint8
 
 #if (DAP_JTAG != 0)
 
-// Generate JTAG Sequence
-//   info:   sequence information
-//   tdi:    pointer to TDI generated data
-//   tdo:    pointer to TDO captured data
-//   return: none
+static inline uint32_t round_up_bits_to_bytes(uint32_t bits) { return (bits + 7u) >> 3; }
+static inline uint32_t round_up_to_8(uint32_t bits)          { return (bits + 7u) & ~7u; }
+
 uint32_t JTAG_Sequence (uint32_t count, const uint8_t *request, uint8_t *response)
 {
+  const uint8_t *req = request;
 
-  uint32_t total_write_bit_cnt = 0;
-  uint32_t total_read_bit_cnt = 0;
-  uint32_t bytes_needed = 0;
+  uint32_t total_write_bits = 0;
+  uint32_t total_read_bits  = 0;
+  uint32_t tdi_tms_bits     = 0;   // total bits we’ll need for TDI/TMS buffers
+  uint32_t tdo_bits_rounded = 0;   // rounded-up total bits we’ll need for TDO buffer
 
-  uint32_t i;
+  // ---------- Pass 1: size calculation (no heavy work) ----------
+  for (uint32_t i = 0; i < count; i++) {
+    uint32_t n = req[0] & JTAG_SEQUENCE_TCK;
+    if (n == 0u) n = 64u;
 
-  uint8_t *req_base = request;
+    tdi_tms_bits += n;
 
-  memset(TMS_SEQ_ARR, 0, 256);
-
-  memset(TDI_SEQ_ARR, 0, 256);
-
-  memset(TDO_SEQ_ARR, 0, 256);
-
-
-  for(i = 0; i < count; i++)
-  {
-	  uint32_t n;
-
-	  uint8_t tms_val = (*request & JTAG_SEQUENCE_TMS) >> 6;
-
-	  n = *request & JTAG_SEQUENCE_TCK;
-
-	  if (n == 0U)
-	  {
-		  n = 64U;
-	  }
-
-	  if(tms_val)
-	  {
-		  fill_tms_buffer(total_write_bit_cnt, n, tms_val);
-	  }
-
-
-	  fill_tdi_buffer(total_write_bit_cnt, n, (request +1));
-
-
-	  total_write_bit_cnt += n;
-
-	  if(*request & JTAG_SEQUENCE_TDO)
-	  {
-		  total_read_bit_cnt += n;
-	  }
-
-
-	  request += ( (n + 7U) /8U ) + 1;
-
-  }
-
-  apply_jtag_xfer(TDI_SEQ_ARR, TMS_SEQ_ARR, TDO_SEQ_ARR, total_write_bit_cnt);
-
-  total_write_bit_cnt = 0;
-
-  total_read_bit_cnt = 0;
-
-
-  for(i = 0; i < count; i++)
-  {
-	  uint32_t n;
-
-
-
-	  n = *req_base & JTAG_SEQUENCE_TCK;
-
-	  if (n == 0U)
-  	  {
-  		  n = 64U;
-  	  }
-
-
-
-	  if(*req_base & JTAG_SEQUENCE_TDO)
-	  {
-
-		  copy_bits_lsb(TDO_SEQ_ARR, total_write_bit_cnt, n, response, total_read_bit_cnt);
-		  total_read_bit_cnt += n;
-
-		  if(total_read_bit_cnt % 8 )
-		  {
-			  total_read_bit_cnt = ( (total_read_bit_cnt / 8) +1) *8;
-		  }
-
-
-	  }
-
-	  total_write_bit_cnt += n;
-
-
-	  req_base += ( (n + 7U) /8U ) + 1;
-
+    if (req[0] & JTAG_SEQUENCE_TDO) {
+      total_read_bits += n;
+      tdo_bits_rounded = round_up_to_8(total_read_bits);
     }
 
-  return total_read_bit_cnt / 8;
+    // advance: header + payload bytes
+    req += 1 + ((n + 7u) >> 3);
+  }
 
+  // Buffers are globals; clear only what we’ll write.
+  memset(TMS_SEQ_ARR, 0x00, round_up_bits_to_bytes(tdi_tms_bits));
+  memset(TDI_SEQ_ARR, 0x00, round_up_bits_to_bytes(tdi_tms_bits));
+  memset(TDO_SEQ_ARR, 0x00, round_up_bits_to_bytes(tdo_bits_rounded));
+
+  // ---------- Pass 2: build TMS/TDI bitstreams ----------
+  req = request;
+  uint32_t wr_bit_cursor = 0;
+
+  for (uint32_t i = 0; i < count; i++) {
+    const uint8_t hdr      = req[0];
+    uint32_t       n       = hdr & JTAG_SEQUENCE_TCK;
+    if (n == 0u) n = 64u;
+
+    const uint32_t byte_len = (n + 7u) >> 3;
+    const uint8_t  tms_bit  = (uint8_t)((hdr & JTAG_SEQUENCE_TMS) >> 6);
+
+    if (tms_bit) {
+      // Fill 'n' ones at the proper places for TMS (your helper already handles packing)
+      fill_tms_buffer(wr_bit_cursor, n, 1);
+    }
+
+    // Quick “all-zero” check on payload to skip fill_tdi_buffer when possible
+    uint32_t or_acc = 0;
+    const uint8_t *payload = req + 1;
+    for (uint32_t k = 0; k < byte_len; k++) {
+      or_acc |= payload[k];
+    }
+    if (or_acc) {
+      // Only write when there is at least one '1' in payload
+      fill_tdi_buffer(wr_bit_cursor, n, payload);
+    }
+
+    wr_bit_cursor += n;
+    req += 1 + byte_len;
+  }
+
+  // ---------- Transfer ----------
+  apply_jtag_xfer(TDI_SEQ_ARR, TMS_SEQ_ARR, TDO_SEQ_ARR, wr_bit_cursor);
+
+  // ---------- Pass 3: extract TDO back to response ----------
+  const uint8_t * __restrict req2 = request;
+  uint32_t rd_bit_cursor = 0;     // where we write into 'response' (bit index)
+  uint32_t scan_bit_off  = 0;     // where we read from TDO_SEQ_ARR   (bit index), follows write order
+
+  for (uint32_t i = 0; i < count; i++) {
+    uint32_t n = req2[0] & JTAG_SEQUENCE_TCK;
+    if (n == 0u) n = 64u;
+
+    const uint32_t byte_len = (n + 7u) >> 3;
+
+    if (req2[0] & JTAG_SEQUENCE_TDO) {
+      // copy the n bits starting at scan_bit_off into 'response' at rd_bit_cursor
+      copy_bits_lsb(TDO_SEQ_ARR, scan_bit_off, n, response, rd_bit_cursor);
+      rd_bit_cursor = round_up_to_8(rd_bit_cursor + n);  // maintain byte alignment between segments
+    }
+
+    scan_bit_off += n;
+    req2 += 1 + byte_len;
+  }
+
+  return rd_bit_cursor >> 3; // bytes produced
 }
 
 
@@ -330,10 +318,21 @@ void JTAG_WriteAbort (uint32_t data)
 void JTAG_IR (uint32_t ir)
 {
 	uint32_t total_bit_cnt = 0;
+	uint32_t required_buf_size = 0;
 	uint32_t n;
-	uint8_t tms_buff[64] = {0};
-	uint8_t tdi_buff[64] = {0};
+	uint8_t tms_buff[64];
+	uint8_t tdi_buff[64];
 	uint8_t tdo_buff[64];
+
+	required_buf_size += 4;
+	required_buf_size += DAP_Data.jtag_dev.ir_before[DAP_Data.jtag_dev.index];
+	required_buf_size += DAP_Data.jtag_dev.ir_length[DAP_Data.jtag_dev.index];
+	required_buf_size += DAP_Data.jtag_dev.ir_after[DAP_Data.jtag_dev.index];
+	required_buf_size += 4;
+
+	memset(tms_buff, 0x0, required_buf_size / 8 +1);
+	memset(tdi_buff, 0x0, required_buf_size / 8 +1);
+
 
 	write_nbits_lsb(tms_buff, 0, 4, 0x3);
 
@@ -409,9 +408,19 @@ uint8_t  JTAG_Transfer(uint32_t request, uint32_t *data)
 	uint32_t n;
 
 	uint32_t total_bit_cnt = 0;
-	uint8_t tms_buff[64] = {0};
-	uint8_t tdi_buff[64] = {0};
-	uint8_t tdo_buff[64] = {0};
+	uint32_t required_buf_size = 0;
+	uint8_t tms_buff[64];
+	uint8_t tdi_buff[64];
+	uint8_t tdo_buff[64];
+
+	required_buf_size += 5;
+	required_buf_size += DAP_Data.jtag_dev.index;
+	required_buf_size += 3;
+
+
+	memset(tms_buff, 0x0, required_buf_size / 8 +1);
+	memset(tdi_buff, 0x0, required_buf_size / 8 +1);
+
 
 	write_nbits_lsb(tms_buff, 0, 5, 0x04);
 	total_bit_cnt += 5;
