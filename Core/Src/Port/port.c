@@ -28,6 +28,8 @@ void Switch_SPI(void)
 
 	GPIOC->PUPDR = (0x1 << 16);
 	GPIOC->AFR[1] = (0x6 << 8) | (0x6 << 12) | (0x6 << 16);
+	GPIOC->OSPEEDR |= (0x3 << 20) | (0x3 << 22) | (0x3 << 24);
+	GPIOE->OSPEEDR |= (0x3 << 4) | (0x3 << 10);
 
 	GPIOC->MODER = (1 << 16) | (0x1 << 18) | (0x2 << 20) | (0x2 << 22 )| (0x2 << 24);
 
@@ -153,6 +155,8 @@ void SPI_TMS_Transfer(uint64_t data, uint8_t bits)
 	 * and bring it back to a known state.
 	 * If I do so, SWDIO and SWCLK line may become unstable and target debug logic may crash.
 	 */
+
+	/*
 	while( (TMSPI->SR & (0x1 << 7) ) )
 	{
 		b++;
@@ -161,7 +165,7 @@ void SPI_TMS_Transfer(uint64_t data, uint8_t bits)
 			NVIC_SystemReset();
 		}
 	}
-
+*/
 	uint32_t dummyRead = TMSPI->DR;
 
 	/* clear read data buffer */
